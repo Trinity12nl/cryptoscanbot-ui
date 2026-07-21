@@ -1,4 +1,4 @@
-import type { BridgeEvent, EngineInfo, Signal, SymbolRow } from '@csb/shared'
+import type { BridgeEvent, EngineInfo, PriceMap, Signal, SymbolRow } from '@csb/shared'
 
 /**
  * The web app's ONLY dependency on the backend: the local bridge (same origin in dev via Vite proxy,
@@ -22,6 +22,12 @@ export async function fetchSymbols(): Promise<SymbolRow[]> {
   const r = await fetch('/api/symbols')
   if (!r.ok) throw new Error(`symbols ${r.status}`)
   return r.json() as Promise<SymbolRow[]>
+}
+
+export async function fetchPrices(): Promise<PriceMap> {
+  const r = await fetch('/api/prices')
+  if (!r.ok) throw new Error(`prices ${r.status}`)
+  return r.json() as Promise<PriceMap>
 }
 
 /** Subscribe to live bridge events over WebSocket, with auto-reconnect. Returns an unsubscribe fn. */

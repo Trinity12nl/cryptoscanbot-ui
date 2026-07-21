@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { EngineInfo, Signal, SymbolRow } from '@csb/shared'
-import { connectBridge, fetchInfo, fetchSignals, fetchSymbols } from './lib/api.ts'
+import type { EngineInfo, PriceMap, Signal, SymbolRow } from '@csb/shared'
+import { connectBridge, fetchInfo, fetchPrices, fetchSignals, fetchSymbols } from './lib/api.ts'
+import { PricesContext } from './context/PricesContext.tsx'
 import { Header } from './components/Header.tsx'
 import { FilterBar, DEFAULT_FILTERS, type Filters } from './components/FilterBar.tsx'
 import { SignalTable } from './components/SignalTable.tsx'
@@ -11,6 +12,7 @@ export function App() {
   const [live, setLive] = useState(false)
   const [signals, setSignals] = useState<Signal[]>([])
   const [symbols, setSymbols] = useState<SymbolRow[]>([])
+  const [prices, setPrices] = useState<PriceMap>({})
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [error, setError] = useState<string | null>(null)
   const [newIds, setNewIds] = useState<ReadonlySet<number>>(new Set())
@@ -18,12 +20,13 @@ export function App() {
 
   useEffect(() => {
     let alive = true
-    Promise.all([fetchInfo(), fetchSignals(1000), fetchSymbols()])
-      .then(([i, s, sy]) => { if (alive) { setInfo(i); setSignals(s); setSymbols(sy) } })
+    Promise.all([fetchInfo(), fetchSignals(1000), fetchSymbols(), fetchPrices()])
+      .then(([i, s, sy, p]) => { if (alive) { setInfo(i); setSignals(s); setSymbols(sy); setPrices(p) } })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'load failed'))
 
     const off = connectBridge((ev) => {
       if (ev.type === 'info') setInfo(ev.info)
+      if (ev.type === 'prices') setPrices(ev.prices)
       if (ev.type === 'signals') {
         setSignals((prev) => {
           const byId = new Map(prev.map((s) => [s.id, s]))
@@ -65,7 +68,9 @@ export function App() {
             <FilterBar filters={filters} onChange={setFilters} strategies={strategies} intervals={intervals} />
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-3">
-            <SignalTable signals={filtered} newIds={newIds} />
+            <PricesContext.Provider value={prices}>
+              <SignalTable signals={filtered} newIds={newIds} />
+            </PricesContext.Provider>
           </div>
         </main>
       </div>

@@ -1,6 +1,7 @@
 import { createColumnHelper, type RowData, type VisibilityState } from '@tanstack/react-table'
 import { Zap } from 'lucide-react'
-import { INTERVAL_SEC, isTrendDivergent, type Signal } from '@csb/shared'
+import { INTERVAL_SEC, isTrendDivergent, signalChangePct, type Signal } from '@csb/shared'
+import { usePrices } from '../context/PricesContext'
 import { SIDE_BADGE_CLASS, pctClass, trendClass } from '../lib/enums'
 import { formatCandleRange, formatCompact, formatMacd, formatNum, formatPrice } from '../lib/format'
 
@@ -17,6 +18,19 @@ declare module '@tanstack/react-table' {
 function PercentCell({ v, decimals = 2 }: { v: number | null; decimals?: number }) {
   if (v == null) return <span className="text-zinc-400 dark:text-zinc-500">-</span>
   return <span className={pctClass(v)}>{formatNum(v, decimals)}%</span>
+}
+
+// Live price vs the signal price (%), re-rendering as prices flush (~4s). Coloured by whether the
+// move FAVOURS the position, not raw sign: a drop is a gain for a short, so shorts invert the colour
+// while the number stays the real change. Ported from the old app's ChangeCell.
+function ChangeCell({ signal }: { signal: Signal }) {
+  const prices = usePrices()
+  const v = signalChangePct(signal.price, prices[signal.symbol])
+  if (v == null) return <span className="text-zinc-400 dark:text-zinc-500">-</span>
+  const favourable = signal.side === 'short' ? -v : v
+  const cls = favourable > 0 ? 'text-emerald-600 dark:text-emerald-400'
+    : favourable < 0 ? 'text-red-600 dark:text-red-400' : ''
+  return <span className={cls}>{formatNum(v, 2)}%</span>
 }
 
 const col = createColumnHelper<Signal>()
@@ -46,6 +60,11 @@ export function buildSignalColumns() {
     }),
     col.accessor('strategy', { id: 'strategy', enableHiding: false, meta: { label: 'Strategy' }, header: 'Strategy', cell: (i) => i.getValue() }),
     col.accessor('price', { id: 'price', enableHiding: false, meta: { label: 'Price' }, header: 'Price', cell: (i) => formatPrice(i.getValue()) }),
+    col.display({
+      id: 'change', meta: { label: 'Change' },
+      header: () => <span title="Live price vs the signal price (%), coloured by whether it favours the position">Change</span>,
+      cell: (ctx) => <ChangeCell signal={ctx.row.original} />,
+    }),
     col.accessor('change24h', { id: 'change24h', meta: { label: '24h Change' }, header: '24h Change', cell: (i) => <PercentCell v={i.getValue()} /> }),
     col.accessor('volume', { id: 'volume', meta: { label: 'Volume' }, header: 'Volume', cell: (i) => formatCompact(i.getValue()) }),
     col.accessor('trendPrimary', {

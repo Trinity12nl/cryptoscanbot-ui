@@ -106,7 +106,19 @@ export interface ScannerDataSource {
   close(): void
 }
 
+/** Live last-price per normalised symbol name (e.g. "ONDOUSDT" -> 0.398). Sourced from a public
+ * exchange ticker feed in Phase B; will move to the headless C# engine in Phase A (same shape). */
+export type PriceMap = Record<string, number>
+
+/** Live price change % of a signal vs its entry, coloured by whether the move favours the position
+ * (a drop is a gain for a short). Returns null when we have no live price yet. */
+export function signalChangePct(signalPrice: number | null, livePrice: number | undefined): number | null {
+  if (signalPrice == null || signalPrice <= 0 || livePrice == null) return null
+  return 100 * (livePrice / signalPrice - 1)
+}
+
 /** WebSocket message envelope the bridge pushes to the UI. */
 export type BridgeEvent =
   | { type: 'signals'; signals: Signal[] }
   | { type: 'info'; info: EngineInfo }
+  | { type: 'prices'; prices: PriceMap }

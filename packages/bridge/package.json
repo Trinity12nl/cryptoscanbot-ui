@@ -13,6 +13,7 @@
   "dependencies": {
     "@csb/shared": "workspace:*",
     "better-sqlite3": "^11.8.1",
+    "ccxt": "^4.4.50",
     "ws": "^8.18.0"
   },
   "devDependencies": {
