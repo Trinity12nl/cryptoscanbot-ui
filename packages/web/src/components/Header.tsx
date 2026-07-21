@@ -1,6 +1,7 @@
 import { Activity, Radio } from 'lucide-react'
 import type { EngineInfo } from '@csb/shared'
 import { ThemeToggle } from './ThemeToggle'
+import { Changelog } from './Changelog'
 
 export function Header({ info, live, signalCount }: {
   info: EngineInfo | null
@@ -30,6 +31,7 @@ export function Header({ info, live, signalCount }: {
         <span className="text-zinc-500 dark:text-zinc-400">
           Signals <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{signalCount}</span>
         </span>
+        <Changelog />
         <ThemeToggle />
       </div>
     </header>
