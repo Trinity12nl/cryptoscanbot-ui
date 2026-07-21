@@ -1,0 +1,20 @@
+{
+  "name": "cryptoscanbot-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cross-platform scanner UI (web + desktop) on top of the CryptoScanBot C# engine.",
+  "scripts": {
+    "dev": "pnpm --filter @csb/bridge dev & pnpm --filter @csb/web dev",
+    "dev:desktop": "pnpm --filter @csb/desktop dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.0.0"
+  }
+}

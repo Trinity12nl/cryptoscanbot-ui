@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-electron/
+build/
+out/
+release/
+*.log
+
+# Local env
+.env
+.env.local
+
+# OS
+.DS_Store
+
+# The C# engine gets bundled at package time, not committed here
+resources/engine/
