@@ -41,11 +41,18 @@ export function connectBridge(onEvent: (ev: BridgeEvent) => void, onStatus?: (up
     ws = new WebSocket(`${proto}://${location.host}/ws`)
     ws.onopen = () => onStatus?.(true)
     ws.onmessage = (e) => {
+      // A message means the socket is up - also covers a race where onopen's status
+      // update was clobbered by a previous (intentionally closed) socket in StrictMode.
+      onStatus?.(true)
       try { onEvent(JSON.parse(e.data as string) as BridgeEvent) } catch { /* ignore */ }
     }
     ws.onclose = () => {
-      onStatus?.(false)
-      if (!closed) retry = setTimeout(open, 1500)
+      // Only report "down" (and retry) on an UNEXPECTED close. An intentional close
+      // from cleanup must not flip the status false and stomp the live connection.
+      if (!closed) {
+        onStatus?.(false)
+        retry = setTimeout(open, 1500)
+      }
     }
     ws.onerror = () => ws?.close()
   }

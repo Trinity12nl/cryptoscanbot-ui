@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5319,
+    host: true, // expose on the LAN so the UI is reachable from other devices (phone/tablet)
     proxy: {
       '/api': { target: BRIDGE, changeOrigin: true },
       '/ws': { target: BRIDGE, ws: true, changeOrigin: true },

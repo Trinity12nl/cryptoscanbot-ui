@@ -49,7 +49,21 @@ export function startBridge(
   const send = (ws: WebSocket, ev: BridgeEvent) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(ev))
   }
+
+  // Heartbeat: ping every 25s and drop sockets that miss a pong. Keeps the connection alive
+  // through proxy/NAT idle timeouts (the cause of "live then reconnecting") and reaps dead ones.
+  const alive = new WeakSet<WebSocket>()
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!alive.has(ws)) { ws.terminate(); continue }
+      alive.delete(ws)
+      ws.ping()
+    }
+  }, 25_000)
+
   wss.on('connection', (ws) => {
+    alive.add(ws)
+    ws.on('pong', () => alive.add(ws))
     void source.info().then((info) => send(ws, { type: 'info', info }))
     send(ws, { type: 'prices', prices: ticker.getPrices() })
   })
@@ -71,6 +85,7 @@ export function startBridge(
 
   return {
     close: () => {
+      clearInterval(heartbeat)
       unsubscribe()
       unsubscribePrices()
       wss.close()
