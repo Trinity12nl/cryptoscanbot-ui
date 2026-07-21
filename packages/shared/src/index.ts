@@ -23,6 +23,13 @@ export function strategyName(id: number): string {
   return STRATEGY_NAMES[id] ?? `#${id}`
 }
 
+/** Interval name -> duration in seconds (for candle open/close identity). */
+export const INTERVAL_SEC: Record<string, number> = {
+  '1m': 60, '2m': 120, '3m': 180, '5m': 300, '10m': 600, '15m': 900,
+  '30m': 1800, '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600,
+  '8h': 28800, '12h': 43200, '1d': 86400, '1w': 604800,
+}
+
 /** One fired signal (from the C# Signal table). */
 export interface Signal {
   id: number
@@ -40,9 +47,27 @@ export interface Signal {
   trendSecondary: number | null
   /** Bollinger %B at signal time. */
   bbPercentage: number | null
+  /** 24h price change % at signal time. */
+  change24h: number | null
+  /** "Effective" change % over the settings window (C# LastXDaysEffective). */
+  effective: number | null
+  rsi: number | null
+  stochOsc: number | null
+  stochSig: number | null
+  macdHistogram: number | null
+  /** "Barcode" / flatness metric. */
+  barcode: number | null
   eventText: string
   /** Signal open time, epoch ms UTC. */
   openDateMs: number | null
+}
+
+/** true when the two market-trend readings disagree in sign and both are meaningful.
+ * A "goodie" the Avalonia UI can't show - it only surfaces one trend. */
+export function isTrendDivergent(s: Pick<Signal, 'trendPrimary' | 'trendSecondary'>): boolean {
+  const a = s.trendPrimary, b = s.trendSecondary
+  if (a == null || b == null) return false
+  return Math.sign(a) !== Math.sign(b) && Math.abs(a) >= 40 && Math.abs(b) >= 40
 }
 
 /** One tradable symbol (from the C# Symbol table). Note: Symbol has no live price column

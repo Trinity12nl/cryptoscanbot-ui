@@ -1,36 +1,48 @@
-/** Small display helpers - US notation (deliberately not the C# European "0,7531"). */
-
-export function fmtNum(n: number | null, digits = 2): string {
+export function formatPrice(n: number | null | undefined): string {
   if (n == null) return '-'
-  return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  const abs = Math.abs(n)
+  if (abs >= 10_000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (abs >= 1)      return n.toFixed(4)
+  if (abs >= 0.0001) return n.toFixed(6)
+  return n.toExponential(3)
 }
 
-export function fmtPrice(n: number | null): string {
+export function formatNum(n: number | null | undefined, decimals = 2): string {
   if (n == null) return '-'
-  const d = n >= 1000 ? 2 : n >= 1 ? 3 : n >= 0.01 ? 5 : 8
-  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+  return n.toFixed(decimals)
 }
 
-/** Compact volume: 1.2M, 3.4K. */
-export function fmtVol(n: number | null): string {
+export function formatMacd(n: number | null | undefined): string {
   if (n == null) return '-'
-  if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`
-  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`
-  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`
+  const abs = Math.abs(n)
+  if (abs === 0) return '0'
+  if (abs >= 10)   return n.toFixed(2)
+  if (abs >= 0.01) return n.toFixed(4)
+  return n.toFixed(6)
+}
+
+export function formatCompact(n: number | null | undefined): string {
+  if (n == null) return '-'
+  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B'
+  if (n >= 1_000_000)     return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000)         return (n / 1_000).toFixed(1) + 'K'
   return n.toFixed(0)
 }
 
-export function fmtTime(ms: number | null): string {
-  if (ms == null) return '-'
-  return new Date(ms).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-  })
+// Candle date range, matching the C# signal grid notation:
+// "2026-07-19 00:01 - 00:02" - full date + candle open time, then the candle
+// close time only (open + interval duration).
+export function formatCandleRange(open: string | Date | null | undefined, durationSec: number): string {
+  if (open == null) return '-'
+  const start = typeof open === 'string' ? new Date(open) : open
+  const end = new Date(start.getTime() + durationSec * 1000)
+  const date = start.toLocaleDateString('en-CA') // YYYY-MM-DD
+  const clock = (d: Date) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return `${date} ${clock(start)} - ${clock(end)}`
 }
 
-/** Trend % -> tailwind text color class. */
-export function trendColor(n: number | null): string {
-  if (n == null) return 'text-muted'
-  if (n >= 60) return 'text-long'
-  if (n <= -60) return 'text-short'
-  return 'text-ink'
+export function formatClock(d: string | Date | null | undefined): string {
+  if (d == null) return '-'
+  const date = typeof d === 'string' ? new Date(d) : d
+  return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 }

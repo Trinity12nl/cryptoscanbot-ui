@@ -39,7 +39,10 @@ interface SignalJoinRow {
   Id: number; ExchangeName: string | null; SymbolName: string | null; IntervalName: string | null
   Strategy: number; Side: number; SignalPrice: string | null; SignalVolume: string | null
   TrendPercentagePrimary: string | null; TrendPercentageSecondary: string | null
-  BollingerBandsPercentage: string | null; EventText: string | null; OpenDate: string | null
+  BollingerBandsPercentage: string | null; Last24HoursChange: string | null
+  LastXDaysEffective: string | null; Rsi: string | null; StochOscillator: string | null
+  StochSignal: string | null; MacdHistogram: string | null; BarcodePercentage: string | null
+  EventText: string | null; OpenDate: string | null
 }
 
 function toSignal(r: SignalJoinRow): Signal {
@@ -57,6 +60,13 @@ function toSignal(r: SignalJoinRow): Signal {
     trendPrimary: num(r.TrendPercentagePrimary),
     trendSecondary: num(r.TrendPercentageSecondary),
     bbPercentage: num(r.BollingerBandsPercentage),
+    change24h: num(r.Last24HoursChange),
+    effective: num(r.LastXDaysEffective),
+    rsi: num(r.Rsi),
+    stochOsc: num(r.StochOscillator),
+    stochSig: num(r.StochSignal),
+    macdHistogram: num(r.MacdHistogram),
+    barcode: num(r.BarcodePercentage),
     eventText: r.EventText ?? '',
     openDateMs: dateMs(r.OpenDate),
   }
@@ -66,6 +76,8 @@ const SIGNAL_SELECT = `
   SELECT s.Id, ex.Name AS ExchangeName, sym.Name AS SymbolName, i.Name AS IntervalName,
          s.Strategy, s.Side, s.SignalPrice, s.SignalVolume,
          s.TrendPercentagePrimary, s.TrendPercentageSecondary, s.BollingerBandsPercentage,
+         s.Last24HoursChange, s.LastXDaysEffective, s.Rsi, s.StochOscillator, s.StochSignal,
+         s.MacdHistogram, s.BarcodePercentage,
          s.EventText, s.OpenDate
   FROM Signal s
   LEFT JOIN Symbol sym ON sym.Id = s.SymbolId
