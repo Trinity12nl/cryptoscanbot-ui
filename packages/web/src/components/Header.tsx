@@ -1,4 +1,4 @@
-import { Activity, Radio } from 'lucide-react'
+import { Radio } from 'lucide-react'
 import type { EngineInfo } from '@csb/shared'
 import { ThemeToggle } from './ThemeToggle'
 import { Changelog } from './Changelog'
@@ -12,7 +12,7 @@ export function Header({ info, live, signalCount }: {
   return (
     <header className="flex items-center gap-6 border-b border-zinc-200 bg-white px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center gap-2">
-        <Activity size={18} className="text-emerald-500" />
+        <img src="/logo.svg" alt="CryptoScanBot" width={20} height={20} className="rounded-[5px]" />
         <span className="text-sm font-semibold tracking-wide text-zinc-900 dark:text-zinc-100">CryptoScanBot</span>
       </div>
 
