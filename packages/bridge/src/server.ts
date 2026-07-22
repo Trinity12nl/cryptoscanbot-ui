@@ -1,7 +1,24 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { createReadStream, existsSync, statSync } from 'node:fs'
+import { extname, join, normalize, resolve } from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { BridgeEvent, ScannerDataSource } from '@csb/shared'
 import type { TickerSource } from './ticker-source.js'
+
+// Minimal content types for the assets Vite emits - enough to serve the built web UI.
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json; charset=utf-8',
+}
 
 /**
  * Local HTTP + WebSocket bridge. The UI (web or Electron) talks ONLY to this, never to the data
@@ -14,6 +31,7 @@ import type { TickerSource } from './ticker-source.js'
  */
 export function startBridge(
   source: ScannerDataSource, ticker: TickerSource, port: number,
+  opts: { staticDir?: string } = {},
 ): { close: () => void } {
   const json = (res: ServerResponse, code: number, body: unknown) => {
     const s = JSON.stringify(body)
@@ -22,6 +40,21 @@ export function startBridge(
       'access-control-allow-origin': '*',
     })
     res.end(s)
+  }
+
+  // Serve the built web UI (when packaged) so the app is same-origin: no CORS, no proxy, and the
+  // UI's relative /api + /ws calls just work. SPA fallback: unknown paths return index.html.
+  const staticRoot = opts.staticDir ? resolve(opts.staticDir) : null
+  const serveStatic = (res: ServerResponse, pathname: string): boolean => {
+    if (!staticRoot) return false
+    const rel = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '')
+    let file = join(staticRoot, rel)
+    if (!file.startsWith(staticRoot)) return false // path traversal guard
+    if (!existsSync(file) || statSync(file).isDirectory()) file = join(staticRoot, 'index.html')
+    if (!existsSync(file)) return false
+    res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' })
+    createReadStream(file).pipe(res)
+    return true
   }
 
   const http = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -38,6 +71,7 @@ export function startBridge(
           return json(res, 200, await source.getSymbols({ exchange }))
         }
         if (url.pathname === '/api/prices') return json(res, 200, ticker.getPrices())
+        if (serveStatic(res, url.pathname)) return
         json(res, 404, { error: 'not found' })
       } catch (err: unknown) {
         json(res, 500, { error: err instanceof Error ? err.message : 'internal error' })
