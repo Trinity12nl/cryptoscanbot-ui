@@ -4,6 +4,7 @@ dist-electron/
 build/
 out/
 release/
+ci-downloads/
 *.log
 
 # Local env
