@@ -5,6 +5,7 @@
   "description": "Cross-platform scanner UI (web + desktop) on top of the CryptoScanBot C# engine.",
   "scripts": {
     "dev": "pnpm --filter @csb/bridge dev & pnpm --filter @csb/web dev",
+    "dev:alt": "CSB_BRIDGE_PORT=4320 pnpm --filter @csb/bridge dev & CSB_BRIDGE_URL=http://127.0.0.1:4320 pnpm --filter @csb/web dev",
     "dev:desktop": "pnpm --filter @csb/desktop dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
