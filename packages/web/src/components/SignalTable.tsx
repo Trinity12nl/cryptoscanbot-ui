@@ -56,7 +56,9 @@ function moveColumn(order: string[], from: string, to: string): ColumnOrderState
   return without
 }
 
-const thCls = 'px-3 py-2.5 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 whitespace-nowrap select-none'
+// Sticky header: stays put while the table body scrolls. Needs a SOLID background (the row content
+// scrolls underneath) and its own bottom border, since the header row can detach from the tbody.
+const thCls = 'sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 px-3 py-2.5 text-left text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 whitespace-nowrap select-none'
 const tdCls = 'px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 whitespace-nowrap'
 
 function SortIcon({ dir }: { dir: false | 'asc' | 'desc' }) {
@@ -103,11 +105,11 @@ export function SignalTable({ signals, newIds }: { signals: Signal[]; newIds: Re
   })
 
   return (
-    <div className="space-y-2">
+    <div className="flex min-h-0 flex-1 flex-col space-y-2">
       <div className="flex justify-end">
         <ColumnPicker table={table} />
       </div>
-      <div className="overflow-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
         <table className="w-full border-collapse text-sm">
           <thead>
             {table.getHeaderGroups().map((hg) => (
