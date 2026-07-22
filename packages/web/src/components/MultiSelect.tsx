@@ -11,10 +11,12 @@ interface Props {
   value: readonly string[]
   onChange: (v: string[]) => void
   placeholder: string
+  /** Option values that are switched OFF in the engine - shown dimmed (still selectable). */
+  inactive?: ReadonlySet<string>
 }
 
 // Ported from the old web app; string-valued (the oracle uses names, not ids).
-export function MultiSelect({ options, value, onChange, placeholder }: Props) {
+export function MultiSelect({ options, value, onChange, placeholder, inactive }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -62,17 +64,20 @@ export function MultiSelect({ options, value, onChange, placeholder }: Props) {
           </button>
           {options.map((opt) => {
             const selected = value.includes(opt.value)
+            const off = inactive?.has(opt.value) ?? false
             return (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => toggle(opt.value)}
-                className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-xs text-zinc-900 transition-colors hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-700"
+                title={off ? 'Off in engine settings - not currently scanning' : undefined}
+                className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 ${off ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-900 dark:text-zinc-100'}`}
               >
                 <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition-colors ${selected ? 'border-zinc-900 bg-zinc-900 dark:border-zinc-100 dark:bg-zinc-100' : 'border-zinc-300 dark:border-zinc-600'}`}>
                   {selected && <Check size={9} className="text-white dark:text-zinc-900" />}
                 </span>
                 <span className="flex-1">{opt.label}</span>
+                {off && <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-zinc-400 dark:text-zinc-600">off</span>}
               </button>
             )
           })}

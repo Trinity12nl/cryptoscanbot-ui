@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { EngineInfo, PriceMap, Signal, SymbolRow } from '@csb/shared'
-import { connectBridge, fetchInfo, fetchPrices, fetchSignals, fetchSymbols } from './lib/api.ts'
+import type { EngineInfo, EngineSettings, PriceMap, Signal, SymbolRow } from '@csb/shared'
+import { connectBridge, fetchInfo, fetchPrices, fetchSettings, fetchSignals, fetchSymbols } from './lib/api.ts'
 import { PricesContext } from './context/PricesContext.tsx'
 import { Header } from './components/Header.tsx'
 import { FilterBar, DEFAULT_FILTERS, type Filters } from './components/FilterBar.tsx'
@@ -13,6 +13,7 @@ export function App() {
   const [signals, setSignals] = useState<Signal[]>([])
   const [symbols, setSymbols] = useState<SymbolRow[]>([])
   const [prices, setPrices] = useState<PriceMap>({})
+  const [settings, setSettings] = useState<EngineSettings | null>(null)
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [error, setError] = useState<string | null>(null)
   const [newIds, setNewIds] = useState<ReadonlySet<number>>(new Set())
@@ -20,13 +21,14 @@ export function App() {
 
   useEffect(() => {
     let alive = true
-    Promise.all([fetchInfo(), fetchSignals(1000), fetchSymbols(), fetchPrices()])
-      .then(([i, s, sy, p]) => { if (alive) { setInfo(i); setSignals(s); setSymbols(sy); setPrices(p) } })
+    Promise.all([fetchInfo(), fetchSignals(1000), fetchSymbols(), fetchPrices(), fetchSettings()])
+      .then(([i, s, sy, p, st]) => { if (alive) { setInfo(i); setSignals(s); setSymbols(sy); setPrices(p); setSettings(st) } })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'load failed'))
 
     const off = connectBridge((ev) => {
       if (ev.type === 'info') setInfo(ev.info)
       if (ev.type === 'prices') setPrices(ev.prices)
+      if (ev.type === 'settings') setSettings(ev.settings)
       if (ev.type === 'signals') {
         setSignals((prev) => {
           const byId = new Map(prev.map((s) => [s.id, s]))
@@ -65,11 +67,11 @@ export function App() {
         <SymbolsPanel symbols={symbols} />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
-            <FilterBar filters={filters} onChange={setFilters} strategies={strategies} intervals={intervals} />
+            <FilterBar filters={filters} onChange={setFilters} strategies={strategies} intervals={intervals} settings={settings} />
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
             <PricesContext.Provider value={prices}>
-              <SignalTable signals={filtered} newIds={newIds} />
+              <SignalTable signals={filtered} newIds={newIds} expireCandles={settings?.removeSignalAfterCandles ?? 0} />
             </PricesContext.Provider>
           </div>
         </main>

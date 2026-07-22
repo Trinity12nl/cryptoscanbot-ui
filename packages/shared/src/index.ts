@@ -110,6 +110,36 @@ export interface ScannerDataSource {
  * exchange ticker feed in Phase B; will move to the headless C# engine in Phase A (same shape). */
 export type PriceMap = Record<string, number>
 
+/**
+ * What the engine is CONFIGURED to scan, for the active exchange - read (never written) from the C#
+ * engine's settings JSON. Drives the "smart" filters: options that are off here are shown dimmed so
+ * you can see what is actually running vs. dormant. Phase A: served by the headless host, same shape.
+ */
+export interface EngineSettings {
+  /** The exchange these settings apply to (General.ActivateExchangeName). */
+  activeExchange: string | null
+  /** Strategy display names (see STRATEGY_NAMES) that are switched ON in the engine. */
+  enabledStrategies: string[]
+  /** Interval names (e.g. "1m","5m") the engine is configured to scan. */
+  enabledIntervals: string[]
+  /** Which trade sides the engine emits. */
+  sides: { long: boolean; short: boolean }
+  /** Configured quote coins; `active` = the engine actually fetches/scans it. */
+  quoteCoins: { name: string; minVolume: number; active: boolean }[]
+  /** Candles after a signal's open before it is considered stale/expired (0 = never expire). */
+  removeSignalAfterCandles: number
+}
+
+/** When a signal goes stale, epoch ms - or null if freshness is off or the interval is unknown. */
+export function signalExpiryMs(
+  openDateMs: number | null, interval: string, removeAfterCandles: number,
+): number | null {
+  if (openDateMs == null || removeAfterCandles <= 0) return null
+  const sec = INTERVAL_SEC[interval]
+  if (!sec) return null
+  return openDateMs + removeAfterCandles * sec * 1000
+}
+
 /** Live price change % of a signal vs its entry, coloured by whether the move favours the position
  * (a drop is a gain for a short). Returns null when we have no live price yet. */
 export function signalChangePct(signalPrice: number | null, livePrice: number | undefined): number | null {
@@ -122,3 +152,4 @@ export type BridgeEvent =
   | { type: 'signals'; signals: Signal[] }
   | { type: 'info'; info: EngineInfo }
   | { type: 'prices'; prices: PriceMap }
+  | { type: 'settings'; settings: EngineSettings }

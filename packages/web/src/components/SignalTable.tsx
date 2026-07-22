@@ -10,6 +10,7 @@ import {
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Signal } from '@csb/shared'
+import { signalExpiryMs } from '@csb/shared'
 import { buildSignalColumns, DEFAULT_COLUMN_VISIBILITY } from './signal-columns'
 import { ColumnPicker } from './ColumnPicker'
 import { buildChartUrl, getChartLinkProvider } from '../lib/chart-links'
@@ -67,7 +68,12 @@ function SortIcon({ dir }: { dir: false | 'asc' | 'desc' }) {
   return <ChevronsUpDown size={11} className="ml-1 inline opacity-40" />
 }
 
-export function SignalTable({ signals, newIds }: { signals: Signal[]; newIds: ReadonlySet<number> }) {
+export function SignalTable({ signals, newIds, expireCandles }: {
+  signals: Signal[]
+  newIds: ReadonlySet<number>
+  /** Candles after which a signal is stale (from engine settings; 0 = never). Dims expired rows. */
+  expireCandles: number
+}) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(loadColumnVisibility)
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(loadColumnOrder)
@@ -151,6 +157,8 @@ export function SignalTable({ signals, newIds }: { signals: Signal[]; newIds: Re
             {table.getRowModel().rows.map((row) => {
               const s = row.original
               const isNew = newIds.has(s.id)
+              const expiry = signalExpiryMs(s.openDateMs, s.interval, expireCandles)
+              const expired = expiry != null && Date.now() > expiry
               return (
                 <tr
                   key={row.id}
@@ -158,8 +166,8 @@ export function SignalTable({ signals, newIds }: { signals: Signal[]; newIds: Re
                     const url = buildChartUrl(getChartLinkProvider(), s.exchange, s.symbol, s.interval)
                     if (url) window.open(url, '_blank', 'noopener,noreferrer')
                   }}
-                  title="Open chart"
-                  className={`cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${isNew ? 'signal-new' : ''}`}
+                  title={expired ? 'Expired - older than the engine keeps signals' : 'Open chart'}
+                  className={`cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${isNew ? 'signal-new' : ''} ${expired ? 'opacity-40' : ''}`}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className={tdCls}>

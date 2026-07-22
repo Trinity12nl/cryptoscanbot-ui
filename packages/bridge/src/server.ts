@@ -4,6 +4,7 @@ import { extname, join, normalize, resolve } from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { BridgeEvent, ScannerDataSource } from '@csb/shared'
 import type { TickerSource } from './ticker-source.js'
+import type { SettingsSource } from './settings-source.js'
 
 // Minimal content types for the assets Vite emits - enough to serve the built web UI.
 const MIME: Record<string, string> = {
@@ -31,8 +32,9 @@ const MIME: Record<string, string> = {
  */
 export function startBridge(
   source: ScannerDataSource, ticker: TickerSource, port: number,
-  opts: { staticDir?: string } = {},
+  opts: { staticDir?: string; settings?: SettingsSource } = {},
 ): { close: () => void } {
+  const settingsSource = opts.settings ?? null
   const json = (res: ServerResponse, code: number, body: unknown) => {
     const s = JSON.stringify(body)
     res.writeHead(code, {
@@ -71,6 +73,7 @@ export function startBridge(
           return json(res, 200, await source.getSymbols({ exchange }))
         }
         if (url.pathname === '/api/prices') return json(res, 200, ticker.getPrices())
+        if (url.pathname === '/api/settings') return json(res, 200, settingsSource?.get() ?? null)
         if (serveStatic(res, url.pathname)) return
         json(res, 404, { error: 'not found' })
       } catch (err: unknown) {
@@ -100,6 +103,8 @@ export function startBridge(
     ws.on('pong', () => alive.add(ws))
     void source.info().then((info) => send(ws, { type: 'info', info }))
     send(ws, { type: 'prices', prices: ticker.getPrices() })
+    const settings = settingsSource?.get()
+    if (settings) send(ws, { type: 'settings', settings })
   })
 
   const unsubscribe = source.subscribeSignals((signals) => {
@@ -109,6 +114,11 @@ export function startBridge(
 
   const unsubscribePrices = ticker.subscribe((prices) => {
     const ev: BridgeEvent = { type: 'prices', prices }
+    for (const ws of wss.clients) send(ws, ev)
+  })
+
+  const unsubscribeSettings = settingsSource?.subscribe((settings) => {
+    const ev: BridgeEvent = { type: 'settings', settings }
     for (const ws of wss.clients) send(ws, ev)
   })
 
@@ -122,10 +132,12 @@ export function startBridge(
       clearInterval(heartbeat)
       unsubscribe()
       unsubscribePrices()
+      unsubscribeSettings?.()
       wss.close()
       http.close()
       source.close()
       ticker.close()
+      settingsSource?.close()
     },
   }
 }

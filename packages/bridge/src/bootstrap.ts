@@ -1,5 +1,6 @@
 import { SqliteDataSource, defaultDbPath } from './sqlite-source.js'
 import { TickerSource } from './ticker-source.js'
+import { SettingsSource } from './settings-source.js'
 import { startBridge } from './server.js'
 
 /**
@@ -12,6 +13,8 @@ export function startBridgeDefault(
 ): { close: () => void } {
   const source = new SqliteDataSource()
   const ticker = new TickerSource()
+  const settings = new SettingsSource()
+  settings.start()
   // eslint-disable-next-line no-console
   console.log(`[bridge] reading oracle DB: ${process.env.CSB_DB_PATH || defaultDbPath()}`)
 
@@ -23,7 +26,7 @@ export function startBridgeDefault(
   void syncTickerExchange()
   const exchangeWatch = setInterval(() => void syncTickerExchange(), 30_000)
 
-  const bridge = startBridge(source, ticker, port, opts)
+  const bridge = startBridge(source, ticker, port, { ...opts, settings })
 
   return {
     close: () => {
