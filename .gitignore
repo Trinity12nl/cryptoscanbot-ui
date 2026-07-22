@@ -15,3 +15,9 @@ release/
 
 # The C# engine gets bundled at package time, not committed here
 resources/engine/
+
+# ...but the desktop app icons ARE source assets (build/ is ignored globally above)
+!packages/desktop/build/
+!packages/desktop/build/icon.svg
+!packages/desktop/build/icon.png
+!packages/desktop/build/icon.icns

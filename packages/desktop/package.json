@@ -1,0 +1,27 @@
+{
+  "name": "@csb/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron shell: runs the bridge in-process and shows the CryptoScanBot UI.",
+  "main": "dist/main.mjs",
+  "scripts": {
+    "build:main": "node esbuild.mjs",
+    "dev": "node esbuild.mjs && CSB_DEV_URL=http://localhost:5319 electron .",
+    "start": "electron .",
+    "dist": "node esbuild.mjs && pnpm --filter @csb/web build && electron-builder",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@csb/bridge": "workspace:*",
+    "@csb/shared": "workspace:*",
+    "better-sqlite3": "^11.8.1",
+    "ccxt": "^4.4.50"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.3"
+  }
+}

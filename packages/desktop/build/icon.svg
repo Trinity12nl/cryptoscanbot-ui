@@ -1,0 +1,58 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Emerald squircle body, brighter at the top for a lit look -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="0.45" stop-color="#10b981"/>
+      <stop offset="1" stop-color="#065f46"/>
+    </linearGradient>
+    <!-- Soft top-left gloss highlight -->
+    <radialGradient id="gloss" cx="0.32" cy="0.22" r="0.85">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Bolt fill: white top fading to mint -->
+    <linearGradient id="bolt" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#ecfdf5"/>
+      <stop offset="1" stop-color="#a7f3d0"/>
+    </linearGradient>
+    <!-- Specular sheen across the upper half of the bolt -->
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.15"/>
+      <stop offset="0.62" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="20" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="16" stdDeviation="26" flood-color="#022c22" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Squircle background -->
+  <rect x="40" y="40" width="944" height="944" rx="232" ry="232" fill="url(#bg)"/>
+  <!-- Gloss on top of the body -->
+  <rect x="40" y="40" width="944" height="944" rx="232" ry="232" fill="url(#gloss)"/>
+  <!-- Thin bright rim for a glassy edge -->
+  <rect x="42" y="42" width="940" height="940" rx="230" ry="230" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="4"/>
+
+  <!-- Lightning bolt (lucide "zap"), scaled + centered, with glow, drop shadow and a sheen overlay -->
+  <g filter="url(#shadow)">
+    <g filter="url(#glow)">
+      <path transform="translate(200,200) scale(26)"
+            d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 L13 2 Z"
+            fill="url(#bolt)" stroke="#ffffff" stroke-width="0.4"
+            stroke-linejoin="round" stroke-linecap="round"/>
+    </g>
+    <path transform="translate(200,200) scale(26)"
+          d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 L13 2 Z"
+          fill="url(#sheen)" stroke-linejoin="round"/>
+  </g>
+</svg>

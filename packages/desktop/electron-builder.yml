@@ -1,0 +1,32 @@
+appId: com.cryptoscanbot.app
+productName: CryptoScanBot
+directories:
+  output: release
+  buildResources: build
+
+# The bundled main process + our own package files. better-sqlite3 (native) is included as a real
+# node_module and rebuilt for Electron's ABI.
+files:
+  - dist/**
+  - package.json
+
+# The built web UI, copied into the app so the in-process bridge can serve it (same-origin).
+extraResources:
+  - from: ../web/dist
+    to: web
+
+# Rebuild native deps (better-sqlite3) against Electron instead of system Node.
+npmRebuild: true
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  category: public.app-category.finance
+  icon: build/icon.icns
+  # Unsigned for now: users right-click > Open once to get past Gatekeeper. Notarization later.
+  identity: null
+
+dmg:
+  title: CryptoScanBot
