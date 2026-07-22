@@ -30,3 +30,24 @@ mac:
 
 dmg:
   title: CryptoScanBot
+
+# Windows: an NSIS installer + a portable (no-install) .exe. MUST be built ON Windows - the native
+# better-sqlite3 cannot be cross-compiled from macOS (node-gyp can't target win32 from darwin).
+# Use the GitHub Actions workflow (.github/workflows/build.yml, windows-latest) or run
+# `pnpm --filter @csb/desktop dist` on a Windows machine. On Windows, better-sqlite3 resolves a
+# prebuilt binary for Electron's ABI, so no compiler is needed. icon.png is auto-converted to .ico.
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: CryptoScanBot

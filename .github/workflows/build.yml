@@ -1,0 +1,51 @@
+name: build
+
+# Builds the desktop app for macOS and Windows. The native module (better-sqlite3) cannot be
+# cross-compiled, so each OS is built on its own runner - Windows on windows-latest is what
+# produces a working .exe (a Mac cannot).
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14      # arm64 -> .dmg
+            build: pnpm --filter @csb/desktop dist
+          - os: windows-latest # x64 -> nsis installer + portable .exe
+            build: pnpm --filter @csb/desktop dist
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Approve native builds (pnpm)
+        run: pnpm rebuild better-sqlite3
+
+      - name: Build desktop
+        run: ${{ matrix.build }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cryptoscanbot-${{ matrix.os }}
+          path: |
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*.exe
+          if-no-files-found: ignore
