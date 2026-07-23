@@ -109,6 +109,40 @@ De WS-verbinding stuurt bij binnenkomst de huidige stand, en daarna push-updates
 { "type": "settings", "settings": { ... } }  // als de instellingen wijzigen
 ```
 
+### Transport: kale WebSocket of SignalR?
+
+Marius stelde voor om **SignalR** te gebruiken voor de live push (bovenop de REST-endpoints). Dat
+is prima - hieronder waarom, en wat het voor de koppeling betekent.
+
+Functioneel maakt het voor de UI niet uit: mijn front-end praat alles via één abstractielaag
+(`ScannerDataSource`), dus of daar een kale browser-`WebSocket` of een `@microsoft/signalr`-client
+onder zit, is één module aan mijn kant. De keuze wordt dus bepaald door wat de **server** het
+handigst maakt - en dat is Marius' kant.
+
+**Waarom SignalR (voordeel zit aan de serverkant):**
+- **.NET-ergonomie.** SignalR is Microsofts eigen realtime-stack: hubs, sterk getypeerde methodes,
+  automatische (de)serialisatie. Veel minder boilerplate dan een rauwe WebSocket-server met de hand
+  in ASP.NET Core. Dit is het echte voordeel, en het valt precies waar het werk zit.
+- **Auto-reconnect + backoff** zit in de client ingebouwd (dat rollen we nu zelf).
+- **Groups / connection management** maken later per-user kanalen triviaal (relevant zodra het
+  multi-user wordt; nu nog niet).
+
+**Wat het kost (klein, en aan mijn kant):**
+- Een client-dependency (`@microsoft/signalr`) i.p.v. de native `WebSocket`, met een eigen
+  handshake-protocol (frames met een `\x1e`-scheider). Iets minder makkelijk te debuggen dan "gewoon
+  een WS", maar contained in één transport-module.
+- De transport-fallback van SignalR (WS -> SSE -> long-polling) is voor ons loze winst: localhost in
+  Chrome/Electron heeft altijd WebSockets.
+
+**Conclusie:** SignalR, omdat de kosten (één adaptermodule) bij mij landen en het voordeel (minder
+boilerplate) bij de engine-host. De event-vormen hierboven blijven het contract - ze reizen dan
+alleen over een SignalR-hub in plaats van een kale WS.
+
+**Eén ontwerpkeuze om samen te maken:** praat de SignalR-hub **direct met de browser**, of houden we
+mijn Node-bruggetje ertussen als vertaler (SignalR-upstream -> mijn UI)? Direct is schoner; het
+bruggetje-als-adapter is een terugvaloptie. Hoeft nu nog niet vast, maar het is het enige echte
+koppelpunt.
+
 ## 4. Wat er nieuw bij komt voor "echt" headless
 
 Bovenop wat ik nu al lees, zijn er drie net-nieuwe stukken die alleen de engine kan leveren:
@@ -127,6 +161,11 @@ Bovenop wat ik nu al lees, zijn er drie net-nieuwe stukken die alleen de engine 
    GET /api/barometer   -> per interval/quote de barometerwaarde(s)
    WS  { "type": "barometer", ... }   // live push
    ```
+   Marius: de barometer staat in de db als candles onder `symbol=$BMPUSDT`, maar het meeste gebeurt
+   in het geheugen en wordt pas ~1x per uur geflushed (om de achterstand bij een crash te beperken).
+   Gevolg voor de UI: de **historie** lees ik gewoon uit die `$BMPUSDT`-candles, maar de **actuele**
+   waarde moet via de push komen (de db loopt tot een uur achter). Dit is precies waarom deze data
+   een live-endpoint/push nodig heeft en niet puur uit SQLite te halen is.
 
 3. **Besturing (optioneel maar handig):**
    ```
