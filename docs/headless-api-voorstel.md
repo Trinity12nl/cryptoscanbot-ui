@@ -144,7 +144,8 @@ Bovenop wat ik nu al lees, zijn er drie net-nieuwe stukken die alleen de engine 
 3. **Het enige echte werk: "settings toepassen" buiten de GUI.** Nu zit de logica van "gebruiker
    klikt Toepassen -> engine reageert" vaak in het instellingen-scherm van de GUI. Voor headless moet
    dat toepas-pad **aanroepbaar zijn buiten de UI** - dus naar `Core` (of een gedeelde service) zakken,
-   zodat zowel de GUI als de API het aanroept. De rest is plumbing.
+   zodat zowel de GUI als de API het aanroept. Zodra dat pad losstaat van de UI, is de rest vooral
+   koppelwerk: de API-endpoints geven bestaande engine-data door, zonder nieuwe logica.
 4. **Thread-veiligheid** - de engine draait achtergrond-loops terwijl de API tegelijk leest/schrijft.
    Gedeelde toegang moet veilig zijn (locks / immutable snapshots).
 
