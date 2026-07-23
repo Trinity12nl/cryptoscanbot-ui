@@ -11,11 +11,11 @@ inclusief het teruglezen én wegschrijven van instellingen.
 ## 1. Waar dit vandaan komt
 
 Ik bouw een eigen UI (web + desktop via Electron, draait native op Mac/Windows/Linux). Die praat nu
-al met de engine, maar in een tussenstap ("Fase B"): ik lees jouw SQLite-oracle en de settings-JSON
+al met de engine, maar in een tussenstap ("Fase A"): ik lees jouw SQLite-oracle en de settings-JSON
 **alleen-lezen** uit, via een klein lokaal Node-bruggetje. Dat werkt, maar het is eenrichtingsverkeer
 en mist de dingen die alleen in het geheugen van de engine leven (barometer, live market-trend).
 
-De volgende stap ("Fase A") is een **headless engine met een API**. Mijn UI is daar al op voorbereid:
+De volgende stap ("Fase B") is een **headless engine met een API**. Mijn UI is daar al op voorbereid:
 ze praat uitsluitend met een klein aantal endpoints. Als jouw headless host diezelfde endpoints
 serveert, valt mijn UI er zonder aanpassingen op. Dit document is die concrete API-afspraak.
 
