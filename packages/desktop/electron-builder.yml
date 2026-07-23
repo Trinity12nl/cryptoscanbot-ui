@@ -1,5 +1,5 @@
-appId: com.cryptoscanbot.app
-productName: CryptoScanBot
+appId: com.cryptoscanbot.ui
+productName: CryptoScanBot-ui
 directories:
   output: release
   buildResources: build
@@ -29,7 +29,7 @@ mac:
   identity: null
 
 dmg:
-  title: CryptoScanBot
+  title: CryptoScanBot-ui
 
 # Windows: an NSIS installer + a portable (no-install) .exe. MUST be built ON Windows - the native
 # better-sqlite3 cannot be cross-compiled from macOS (node-gyp can't target win32 from darwin).
@@ -50,4 +50,4 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  shortcutName: CryptoScanBot
+  shortcutName: CryptoScanBot-ui

@@ -27,7 +27,7 @@ function createWindow(url: string): void {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: 'CryptoScanBot',
+    title: 'CryptoScanBot-ui',
     backgroundColor: '#18181b',
     show: false,
     webPreferences: {
