@@ -12,7 +12,7 @@ export type TradeSide = 'long' | 'short'
 /** C# CryptoSignalStrategy enum (avalonia branch) -> display name. */
 export const STRATEGY_NAMES: Record<number, string> = {
   0: 'Jump', 1: 'Sbm1', 2: 'Sbm2', 3: 'Sbm3', 6: 'Stobb', 7: 'StobbMulti',
-  10: 'StoRsi', 11: 'StoRsiMulti', 25: 'Nwe', 28: 'Baba', 29: 'AtrRb', 30: 'Bre',
+  10: 'StoRsi', 11: 'StoRsiMulti', 25: 'Nwe', 28: 'Vbs', 29: 'AtrRb', 30: 'Dbr',
   31: 'Trend', 42: 'Bbma', 43: 'BbmaOmni', 52: 'StochDir', 53: 'BbRsiEngulfing',
   54: 'IchimokuKumoBreakout', 60: 'ChochPrimary', 61: 'ChochPrimaryPullback',
   62: 'ChochSecondary', 63: 'ChochSecondaryPullback', 1000: 'DominantLevel',
