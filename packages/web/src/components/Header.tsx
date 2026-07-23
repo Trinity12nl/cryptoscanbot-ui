@@ -12,8 +12,14 @@ export function Header({ info, live, signalCount }: {
   return (
     <header className="flex items-center gap-6 border-b border-zinc-200 bg-white px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center gap-2">
-        <img src="/logo.svg" alt="CryptoScanBot" width={20} height={20} className="rounded-[5px]" />
-        <span className="text-sm font-semibold tracking-wide text-zinc-900 dark:text-zinc-100">CryptoScanBot</span>
+        <img src="/logo.svg" alt="CryptoScanBot-ui" width={20} height={20} className="rounded-[5px]" />
+        <span className="text-sm font-semibold tracking-wide text-zinc-900 dark:text-zinc-100">CryptoScanBot-ui</span>
+        <span
+          title="This is the UI shell - it reads and displays the C# scanner engine, it is not the scanner itself."
+          className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+        >
+          shell
+        </span>
       </div>
 
       <div className="flex items-center gap-2 text-sm">
