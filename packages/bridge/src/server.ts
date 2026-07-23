@@ -23,8 +23,8 @@ const MIME: Record<string, string> = {
 
 /**
  * Local HTTP + WebSocket bridge. The UI (web or Electron) talks ONLY to this, never to the data
- * source directly - so swapping SqliteDataSource (Phase B) for an HttpDataSource against a headless
- * C# host (Phase A) changes nothing here or in the UI.
+ * source directly - so swapping SqliteDataSource (Phase A) for an HttpDataSource against a headless
+ * C# host (Phase B) changes nothing here or in the UI.
  *
  * REST:  GET /api/info | /api/signals?limit= | /api/symbols?exchange= | /api/prices
  * WS:    pushes { type:'signals' } as new signals land, { type:'prices' } as the ticker updates,

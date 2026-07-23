@@ -27,7 +27,7 @@ Filter-relevant keys in `CryptoScanBot-settings.json`:
 - Map the C# setting names to our avalonia strategy ids (Stobb/Sbm/Jump/ZonesFvg/... -> STRATEGY_NAMES).
 - Expose `GET /api/settings`; include it in the WS `info` push. Poll the file mtime (cheap) so a
   settings change in the engine reflects without a restart.
-- Fits the seam: Phase A headless host later serves the same `/api/settings`.
+- Fits the seam: Phase B headless host later serves the same `/api/settings`.
 
 ### 3. Web (`@csb/web`)
 - Cherry-pick the old `MultiSelect` "inactive option" treatment (greyed + a tooltip like
@@ -39,7 +39,7 @@ Filter-relevant keys in `CryptoScanBot-settings.json`:
 
 ## Notes / decisions to confirm
 - Read-only: we surface engine settings, we do NOT edit them (the old app had a full settings editor;
-  out of scope here - the engine owns its config in Phase B).
+  out of scope here - the engine owns its config in Phase A).
 - Multi-exchange: Inge runs Bybit Spot + Futures (separate per-exchange DBs). Confirm whether smart
   filters should reflect just the active exchange or all configured ones.
 - Strategy-name mapping (C# setting bool -> our strategy id) needs a small lookup table; verify each

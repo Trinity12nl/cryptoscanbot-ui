@@ -85,7 +85,7 @@ const SIGNAL_SELECT = `
   LEFT JOIN Interval i ON i.Id = s.IntervalId`
 
 /**
- * Phase B data source: reads the C# engine's SQLite oracle read-only (WAL-aware, so it sees the
+ * Phase A data source: reads the C# engine's SQLite oracle read-only (WAL-aware, so it sees the
  * engine's committed writes live) and polls for newly-inserted signals. Zero C# changes.
  */
 export class SqliteDataSource implements ScannerDataSource {

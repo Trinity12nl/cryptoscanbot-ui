@@ -3,7 +3,7 @@ import type { BridgeEvent, EngineInfo, EngineSettings, PriceMap, Signal, SymbolR
 /**
  * The web app's ONLY dependency on the backend: the local bridge (same origin in dev via Vite proxy,
  * same paths in Electron). It does not know or care that the bridge currently reads a SQLite oracle -
- * when we move to a headless C# host (Phase A), this file is unchanged.
+ * when we move to a headless C# host (Phase B), this file is unchanged.
  */
 
 export async function fetchInfo(): Promise<EngineInfo> {

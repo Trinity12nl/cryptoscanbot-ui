@@ -3,8 +3,8 @@ import type { PriceMap } from '@csb/shared'
 
 /**
  * Live last-price feed for the "Change" column. The C# engine's Change is live price vs signal
- * price, and the oracle SQLite does NOT store live prices - so in Phase B we pull them ourselves
- * from the exchange's PUBLIC ticker feed (orthogonal to the scanning engine). In Phase A this can
+ * price, and the oracle SQLite does NOT store live prices - so in Phase A we pull them ourselves
+ * from the exchange's PUBLIC ticker feed (orthogonal to the scanning engine). In Phase B this can
  * be swapped for prices coming from the headless C# host; the PriceMap shape stays the same.
  *
  * Keyed by normalised symbol ("ONDO/USDT" -> "ONDOUSDT") so it matches Signal.symbol directly.

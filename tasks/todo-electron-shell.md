@@ -13,7 +13,7 @@ just **rebuild the `.dmg`** whenever we want a shareable snapshot.
 - `better-sqlite3` is a native module and must be built for **Electron's** ABI, not system Node.
   electron-builder rebuilds it at package time (`npmRebuild` / app-deps rebuild).
 - The C# engine is still the **Avalonia GUI app** (apphost `CryptoScanBot`, ~197 MB self-contained
-  `osx-arm64` publish). There is **no headless mode yet** (that is Phase A / the Marius talk). So for
+  `osx-arm64` publish). There is **no headless mode yet** (that is Phase B / the Marius talk). So for
   now the engine runs as it does today, with its own window. We do NOT bundle/spawn it in step 1.
 
 ## Plan
@@ -53,7 +53,7 @@ Requested by Inge 2026-07-21, run after her quota reset:
 ### Step 2 - bundle the engine (standalone, one double-click)  ← later, optional for now
 - [ ] Bundle the `osx-arm64` engine publish inside the app (extraResources).
 - [ ] Spawn it as a child process on launch; stop it on quit. (Its Avalonia window still appears -
-      a known Phase-B artifact; Phase A headless removes it.)
+      a known Phase-A artifact; Phase B headless removes it.)
 - [ ] This is what other Mac users need (unsigned `.dmg` + "right-click > Open" manual).
 
 ## Notes / decisions

@@ -1,6 +1,6 @@
 /**
  * The data contract between the UI and whatever is feeding it. This is THE seam that keeps
- * Phase B (read the C# engine's SQLite oracle) and Phase A (talk to a headless C# host) swappable:
+ * Phase A (read the C# engine's SQLite oracle) and Phase B (talk to a headless C# host) swappable:
  * the UI only ever depends on ScannerDataSource + these DTOs, never on where the data comes from.
  *
  * DTOs are UI-shaped (numbers already parsed, side/strategy already named) - the mapping from the
@@ -93,9 +93,9 @@ export interface EngineInfo {
 }
 
 /**
- * The one interface the UI talks to. Phase B: SqliteDataSource. Phase A: HttpDataSource.
+ * The one interface the UI talks to. Phase A: SqliteDataSource. Phase B: HttpDataSource.
  * Note: barometer + live market-indicators are engine-in-memory (NOT in SQLite), so they arrive
- * only in Phase A via the C# host - hence not on this Phase-B-capable contract yet.
+ * only in Phase B via the C# host - hence not on this Phase-A-capable contract yet.
  */
 export interface ScannerDataSource {
   info(): Promise<EngineInfo>
@@ -107,13 +107,13 @@ export interface ScannerDataSource {
 }
 
 /** Live last-price per normalised symbol name (e.g. "ONDOUSDT" -> 0.398). Sourced from a public
- * exchange ticker feed in Phase B; will move to the headless C# engine in Phase A (same shape). */
+ * exchange ticker feed in Phase A; will move to the headless C# engine in Phase B (same shape). */
 export type PriceMap = Record<string, number>
 
 /**
  * What the engine is CONFIGURED to scan, for the active exchange - read (never written) from the C#
  * engine's settings JSON. Drives the "smart" filters: options that are off here are shown dimmed so
- * you can see what is actually running vs. dormant. Phase A: served by the headless host, same shape.
+ * you can see what is actually running vs. dormant. Phase B: served by the headless host, same shape.
  */
 export interface EngineSettings {
   /** The exchange these settings apply to (General.ActivateExchangeName). */
