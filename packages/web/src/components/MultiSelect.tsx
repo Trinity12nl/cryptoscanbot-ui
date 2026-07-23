@@ -39,6 +39,12 @@ export function MultiSelect({ options, value, onChange, placeholder, inactive }:
     value.length === 1 ? (options.find((o) => o.value === value[0])?.label ?? noun) :
     `${value.length} ${noun}`
 
+  // Active (scanning) options first, "not scanning" below. Stable sort keeps the original order
+  // within each group, and re-groups when `inactive` changes after an engine settings change.
+  const orderedOptions = [...options].sort(
+    (a, b) => Number(inactive?.has(a.value) ?? false) - Number(inactive?.has(b.value) ?? false),
+  )
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -62,7 +68,7 @@ export function MultiSelect({ options, value, onChange, placeholder, inactive }:
             </span>
             All
           </button>
-          {options.map((opt) => {
+          {orderedOptions.map((opt) => {
             const selected = value.includes(opt.value)
             const off = inactive?.has(opt.value) ?? false
             return (
@@ -71,13 +77,13 @@ export function MultiSelect({ options, value, onChange, placeholder, inactive }:
                 type="button"
                 onClick={() => toggle(opt.value)}
                 title={off ? 'Off in engine settings - not currently scanning' : undefined}
-                className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 ${off ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-900 dark:text-zinc-100'}`}
+                className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 ${off ? 'opacity-50' : 'text-zinc-900 dark:text-zinc-100'}`}
               >
                 <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition-colors ${selected ? 'border-zinc-900 bg-zinc-900 dark:border-zinc-100 dark:bg-zinc-100' : 'border-zinc-300 dark:border-zinc-600'}`}>
                   {selected && <Check size={9} className="text-white dark:text-zinc-900" />}
                 </span>
                 <span className="flex-1">{opt.label}</span>
-                {off && <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-zinc-400 dark:text-zinc-600">off</span>}
+                {off && <span className="ml-2 shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">not scanning</span>}
               </button>
             )
           })}

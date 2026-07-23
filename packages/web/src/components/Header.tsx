@@ -3,10 +3,11 @@ import type { EngineInfo } from '@csb/shared'
 import { ThemeToggle } from './ThemeToggle'
 import { Changelog } from './Changelog'
 
-export function Header({ info, live, signalCount }: {
+export function Header({ info, live, shown, today }: {
   info: EngineInfo | null
   live: boolean
-  signalCount: number
+  shown: number
+  today: number
 }) {
   const connected = info?.connected ?? false
   return (
@@ -14,12 +15,6 @@ export function Header({ info, live, signalCount }: {
       <div className="flex items-center gap-2">
         <img src="/logo.svg" alt="CryptoScanBot-ui" width={20} height={20} className="rounded-[5px]" />
         <span className="text-sm font-semibold tracking-wide text-zinc-900 dark:text-zinc-100">CryptoScanBot-ui</span>
-        <span
-          title="This is the UI shell - it reads and displays the C# scanner engine, it is not the scanner itself."
-          className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-        >
-          shell
-        </span>
       </div>
 
       <div className="flex items-center gap-2 text-sm">
@@ -35,7 +30,9 @@ export function Header({ info, live, signalCount }: {
 
       <div className="ml-auto flex items-center gap-5 text-sm">
         <span className="text-zinc-500 dark:text-zinc-400">
-          Signals <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{signalCount}</span>
+          <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{shown}</span> shown
+          {' - '}
+          <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{today}</span> today
         </span>
         <Changelog />
         <ThemeToggle />
