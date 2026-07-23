@@ -128,6 +128,12 @@ export interface EngineSettings {
   quoteCoins: { name: string; minVolume: number; active: boolean }[]
   /** Candles after a signal's open before it is considered stale/expired (0 = never expire). */
   removeSignalAfterCandles: number
+  /** Settings file last-modified time (epoch ms). Note: the engine rewrites this file for its own
+   * bookkeeping too, so mtime alone is NOT a reliable "user changed settings" signal. */
+  lastChangedMs: number
+  /** Stable hash of only the scan-relevant config (strategies, intervals, sides, quotes, exchange,
+   * expiry). Changes only on a real config change - use THIS to flag "settings changed". */
+  configSignature: string
 }
 
 /** When a signal goes stale, epoch ms - or null if freshness is off or the interval is unknown. */

@@ -9,12 +9,28 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.3.2 - 2026-07-24
+
+### NEW
+- **Full filter catalog with "not scanning".** The strategy and interval filters now list the whole known set, with the ones the engine is not scanning dimmed and tagged `not scanning` (active ones first) - instead of only whatever happened to fire. Ported from the old app.
+- **"Settings changed" marker.** When the engine's scan config actually changes (a strategy/interval toggle, quote coins, exchange or expiry), an amber row marks it in the signal table ("signals below used previous settings"), and the filter re-syncs to what is now scanning so newly enabled strategies show. Detection keys off a signature of the scan-relevant fields, so the engine's own bookkeeping rewrites no longer trigger a false marker.
+- **Signal counter + Load more.** The header now reads `N shown - M today`, and a `Load more` button pages through the list (100 at a time).
+- **Reset filters.** A subtle `Reset` text link (with an info tooltip) returns the filters to what the engine is currently scanning; this scanned set is also the default on load.
+- **Symbols panel upgrade.** Sticky, sortable header (default by symbol, like Avalonia), `Esc` clears the filter, only active quote coins are listed, zero-volume symbols are hidden, and volume above the configured threshold is highlighted.
+
+### IMPROVED
+- **New-signal highlight** restored to the old 5s soft-green fade.
+- **Sticky headers keep their bottom line** while scrolling (box-shadow instead of a border that dropped out under `border-collapse`), and row hover is more visible in light mode.
+
+### TECH
+- Bridge exposes `configSignature` + `lastChangedMs` on `EngineSettings`; the app keys the settings-changed marker off the signature.
+
 ## v0.3.1 - 2026-07-23
 
 ### TECH
 - **Strategy-name sync with upstream.** Marius renamed two strategies in the avalonia engine to match their real formula: `Baba` -> `Vbs` (VWAP Bands, id 28) and `Bre` -> `Dbr` (Donchian Breakout Reversion, id 30). The enum values are unchanged, so this is display-only; updated `STRATEGY_NAMES` so the grid shows the current names.
 - **Version aligned to 0.3.1.** All workspace packages were still at `0.1.0`, so installers were named `... 0.1.0.exe` despite shipping the current feature set. Bumped every `package.json` to match this changelog. First build validated running native in a Windows 11 (ARM) UTM VM against Marius' live C# engine, reading the shared `%APPDATA%\CryptoScanBot` DB with row-for-row signal parity.
-- **Renamed the app to `CryptoScanBot-ui`.** Installer/exe, macOS `.dmg`, window title, browser tab and the header now read `CryptoScanBot-ui`, with a small `shell` badge in the header - to make unmistakably clear this is the UI shell, not the scanner engine itself (Phase A). Also changed `appId` to `com.cryptoscanbot.ui`, which moves the app's own Electron data out of the engine's `%APPDATA%\CryptoScanBot` folder (no more collision). The `defaultDbPath()` that reads the engine DB is unchanged, so the connection to the scanner keeps working.
+- **Renamed the app to `CryptoScanBot-ui`.** Installer/exe, macOS `.dmg`, window title, browser tab and the header now read `CryptoScanBot-ui` - the `-ui` suffix makes clear this is the UI, not the scanner engine itself (Phase A). Also changed `appId` to `com.cryptoscanbot.ui`, which moves the app's own Electron data out of the engine's `%APPDATA%\CryptoScanBot` folder (no more collision). The `defaultDbPath()` that reads the engine DB is unchanged, so the connection to the scanner keeps working.
 
 ## v0.3.0 - 2026-07-22
 

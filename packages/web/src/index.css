@@ -16,9 +16,10 @@ body {
 ::-webkit-scrollbar-thumb { background: rgb(161 161 170 / 0.4); border-radius: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-/* New-signal flash used by SignalTable rows. */
-@keyframes signal-new-flash {
-  0% { background-color: rgb(16 185 129 / 0.22); }
+/* New-signal highlight used by SignalTable rows (ported from the old app: 5s soft fade). */
+@keyframes signal-highlight {
+  0%   { background-color: rgb(16 185 129 / 0.15); }
+  70%  { background-color: rgb(16 185 129 / 0.08); }
   100% { background-color: transparent; }
 }
-.signal-new { animation: signal-new-flash 2s ease-out; }
+.signal-new { animation: signal-highlight 5s ease-out forwards; }

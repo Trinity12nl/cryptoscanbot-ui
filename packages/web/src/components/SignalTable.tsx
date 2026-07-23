@@ -7,8 +7,8 @@ import {
   type SortingState,
   type VisibilityState,
 } from '@tanstack/react-table'
-import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp, ChevronsUpDown, Pencil } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { Signal } from '@csb/shared'
 import { signalExpiryMs } from '@csb/shared'
 import { buildSignalColumns, DEFAULT_COLUMN_VISIBILITY } from './signal-columns'
@@ -59,7 +59,9 @@ function moveColumn(order: string[], from: string, to: string): ColumnOrderState
 
 // Sticky header: stays put while the table body scrolls. Needs a SOLID background (the row content
 // scrolls underneath) and its own bottom border, since the header row can detach from the tbody.
-const thCls = 'sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 px-3 py-2.5 text-left text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 whitespace-nowrap select-none'
+// Bottom line via box-shadow, not border-b: a sticky th's border disappears on scroll under
+// border-collapse, but an inset shadow rides along with the cell.
+const thCls = 'sticky top-0 z-10 bg-zinc-50 px-3 py-2.5 text-left text-xs font-medium text-zinc-500 shadow-[inset_0_-1px_0_rgb(228_228_231)] dark:bg-zinc-900 dark:text-zinc-400 dark:shadow-[inset_0_-1px_0_rgb(39_39_42)] whitespace-nowrap select-none'
 const tdCls = 'px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 whitespace-nowrap'
 
 function SortIcon({ dir }: { dir: false | 'asc' | 'desc' }) {
@@ -68,11 +70,27 @@ function SortIcon({ dir }: { dir: false | 'asc' | 'desc' }) {
   return <ChevronsUpDown size={11} className="ml-1 inline opacity-40" />
 }
 
-export function SignalTable({ signals, newIds, expireCandles }: {
+// Compact "Ns ago" / "Nm ago" for the settings-changed marker (ported from the old app).
+function formatTimeAgo(timestampMs: number): string {
+  const s = Math.floor((Date.now() - timestampMs) / 1000)
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+export function SignalTable({ signals, newIds, expireCandles, settingsChangedAt, hasMore, onLoadMore }: {
   signals: Signal[]
   newIds: ReadonlySet<number>
   /** Candles after which a signal is stale (from engine settings; 0 = never). Dims expired rows. */
   expireCandles: number
+  /** When the engine settings last changed - inserts a divider before signals that predate it. */
+  settingsChangedAt: number | null
+  /** More rows exist beyond the ones passed in (drives the "Load more" footer). */
+  hasMore: boolean
+  onLoadMore: () => void
 }) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(loadColumnVisibility)
@@ -154,32 +172,61 @@ export function SignalTable({ signals, newIds, expireCandles }: {
                 </td>
               </tr>
             )}
-            {table.getRowModel().rows.map((row) => {
-              const s = row.original
-              const isNew = newIds.has(s.id)
-              const expiry = signalExpiryMs(s.openDateMs, s.interval, expireCandles)
-              const expired = expiry != null && Date.now() > expiry
-              return (
-                <tr
-                  key={row.id}
-                  onClick={() => {
-                    const url = buildChartUrl(getChartLinkProvider(), s.exchange, s.symbol, s.interval)
-                    if (url) window.open(url, '_blank', 'noopener,noreferrer')
-                  }}
-                  title={expired ? 'Expired - older than the engine keeps signals' : 'Open chart'}
-                  className={`cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${isNew ? 'signal-new' : ''} ${expired ? 'opacity-40' : ''}`}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className={tdCls}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              )
-            })}
+            {(() => {
+              const rows = table.getRowModel().rows
+              const colCount = table.getVisibleLeafColumns().length
+              // Only show the divider in default (unsorted) order, where rows are newest-first.
+              const showDivider = settingsChangedAt != null && sorting.length === 0
+              let dividerInserted = false
+              return rows.map((row) => {
+                const s = row.original
+                const isNew = newIds.has(s.id)
+                const expiry = signalExpiryMs(s.openDateMs, s.interval, expireCandles)
+                const expired = expiry != null && Date.now() > expiry
+                const insertDivider = showDivider && !dividerInserted && (s.openDateMs ?? 0) < settingsChangedAt!
+                if (insertDivider) dividerInserted = true
+                return (
+                  <Fragment key={row.id}>
+                    {insertDivider && (
+                      <tr>
+                        <td colSpan={colCount} className="border-y border-amber-200 bg-amber-50 px-3 py-1.5 dark:border-amber-800/50 dark:bg-amber-900/20">
+                          <span className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                            <Pencil size={12} />
+                            Settings changed {formatTimeAgo(settingsChangedAt!)} - signals below used previous settings
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                    <tr
+                      onClick={() => {
+                        const url = buildChartUrl(getChartLinkProvider(), s.exchange, s.symbol, s.interval)
+                        if (url) window.open(url, '_blank', 'noopener,noreferrer')
+                      }}
+                      title={expired ? 'Expired - older than the engine keeps signals' : 'Open chart'}
+                      className={`cursor-pointer transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800/40 ${isNew ? 'signal-new' : ''} ${expired ? 'opacity-40' : ''}`}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className={tdCls}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  </Fragment>
+                )
+              })
+            })()}
           </tbody>
         </table>
       </div>
+      {hasMore && (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          className="w-full rounded-lg border border-zinc-200 py-2.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+        >
+          Load more
+        </button>
+      )}
     </div>
   )
 }

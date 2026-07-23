@@ -30,7 +30,7 @@ interface RawSettings {
   QuoteCoins?: Record<string, { MinimalVolume?: number; FetchCandles?: boolean }>
 }
 
-function normalize(raw: RawSettings): EngineSettings {
+function normalize(raw: RawSettings, lastChangedMs: number): EngineSettings {
   const long = raw.Signal?.Long ?? {}
   const short = raw.Signal?.Short ?? {}
 
@@ -59,6 +59,16 @@ function normalize(raw: RawSettings): EngineSettings {
     },
     quoteCoins,
     removeSignalAfterCandles: Number(raw.General?.RemoveSignalAfterxCandles ?? 0),
+    lastChangedMs: Math.round(lastChangedMs),
+    // Only the scan-relevant fields (raw, so a strategy like baba that we don't map is still seen).
+    // Excludes the engine's bookkeeping writes that bump the file mtime without a real config change.
+    configSignature: JSON.stringify({
+      ls: long.Strategy ?? [], li: long.Interval ?? [],
+      ss: short.Strategy ?? [], si: short.Interval ?? [],
+      q: Object.entries(raw.QuoteCoins ?? {}).map(([n, c]) => [n, c?.MinimalVolume ?? 0, c?.FetchCandles === true]),
+      ex: raw.General?.ActivateExchangeName ?? null,
+      rm: raw.General?.RemoveSignalAfterxCandles ?? 0,
+    }),
   }
 }
 
@@ -80,7 +90,7 @@ export class SettingsSource {
       const mtime = statSync(this.path).mtimeMs
       if (mtime !== this.mtimeMs || this.cached == null) {
         const raw = JSON.parse(readFileSync(this.path, 'utf8')) as RawSettings
-        this.cached = normalize(raw)
+        this.cached = normalize(raw, mtime)
         this.mtimeMs = mtime
       }
       return this.cached
