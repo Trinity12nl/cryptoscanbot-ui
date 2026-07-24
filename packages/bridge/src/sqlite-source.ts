@@ -140,13 +140,16 @@ export class SqliteDataSource implements ScannerDataSource {
   async getSymbols(opts: { exchange?: string } = {}): Promise<SymbolRow[]> {
     const db = this.open()
     if (!db) return []
+    // The real exchange link is Symbol.ExchangeId -> Exchange.Name; the Symbol.ExchangeName column is
+    // a C# quirk that actually holds the symbol's own name, so we join instead of trusting it. Filter
+    // by the active exchange so the list matches what the engine is scanning (a symbol like BTCUSDT
+    // exists once per exchange).
+    const base = `
+      SELECT s.Name, s.Base, s.Quote, ex.Name AS ExchangeName, s.Volume, s.Status
+      FROM Symbol s LEFT JOIN Exchange ex ON ex.Id = s.ExchangeId`
     const rows = (opts.exchange
-      ? db.prepare(
-          `SELECT Name, Base, Quote, ExchangeName, Volume, Status FROM Symbol WHERE ExchangeName = ? ORDER BY Name`,
-        ).all(opts.exchange)
-      : db.prepare(
-          `SELECT Name, Base, Quote, ExchangeName, Volume, Status FROM Symbol ORDER BY Name`,
-        ).all()) as Array<{
+      ? db.prepare(`${base} WHERE ex.Name = ? ORDER BY s.Name`).all(opts.exchange)
+      : db.prepare(`${base} ORDER BY s.Name`).all()) as Array<{
           Name: string; Base: string | null; Quote: string | null
           ExchangeName: string | null; Volume: string | null; Status: number | null
         }>

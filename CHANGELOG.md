@@ -9,6 +9,18 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.3.3 - 2026-07-24
+
+### NEW
+- **Exchange switch reflects live.** When the engine switches active exchange, the header updates on its own (within ~5s) instead of only after a manual page refresh - the bridge now polls engine info and pushes it on change.
+
+### FIX
+- **Symbol list matches the active exchange.** The list showed a cross-exchange union (a symbol exists once per exchange), so it could show the wrong exchange's symbols. It now filters to the active exchange, joining on the real `ExchangeId` (the `Symbol.ExchangeName` column is a C# quirk that stores the symbol's own name), and reloads when you switch exchange.
+- **Correct active exchange.** The header took the most recently symbol-refreshed exchange (`LastTimeFetched`), which lags a switch by up to an hour; it now reads the active exchange from the engine's settings (`ActivateExchangeName`).
+
+### IMPROVED
+- **Symbol list self-corrects during a backfill.** Right after an exchange switch the engine fills in volumes gradually; the list now refreshes every 60s so the filtered count climbs to the real value without a manual reload.
+
 ## v0.3.2 - 2026-07-24
 
 ### NEW
