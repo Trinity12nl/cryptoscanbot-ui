@@ -1,6 +1,6 @@
 {
   "name": "@csb/desktop",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Electron shell: runs the bridge in-process and shows the CryptoScanBot UI.",
   "author": "CryptoScanBot",

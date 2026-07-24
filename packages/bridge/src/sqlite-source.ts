@@ -7,17 +7,39 @@ import type {
 } from '@csb/shared'
 import { strategyName } from '@csb/shared'
 
+const APP = 'CryptoScanBot'
+
 /** Default oracle DB path per platform (where the C# engine writes on each OS). */
 export function defaultDbPath(): string {
-  const app = 'CryptoScanBot'
   if (process.platform === 'darwin') {
-    return join(homedir(), 'Library', 'Application Support', app, `${app}.db`)
+    return join(homedir(), 'Library', 'Application Support', APP, `${APP}.db`)
   }
   if (process.platform === 'win32') {
-    return join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), app, `${app}.db`)
+    return join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), APP, `${APP}.db`)
   }
   // linux / other: .NET SpecialFolder.ApplicationData -> ~/.config
-  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), app, `${app}.db`)
+  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), APP, `${APP}.db`)
+}
+
+/** Options for locating the engine's data (matches the C# engine's `-f "datafolder"`). */
+export interface DataLocation {
+  /** Explicit path to the oracle DB file (highest precedence). */
+  dbPath?: string
+  /** Folder the engine writes to (`-f`); the DB is `<dataDir>/CryptoScanBot.db`. */
+  dataDir?: string
+}
+
+/**
+ * Resolve the oracle DB path. Precedence: explicit `dbPath` -> `dataDir`/CryptoScanBot.db ->
+ * `CSB_DB_PATH` env -> `CSB_DATA_DIR` env/CryptoScanBot.db -> platform default. This is what lets the
+ * UI point at an engine launched with `-f "datafolder"` instead of the standard OS path.
+ */
+export function resolveDbPath(opts: DataLocation = {}): string {
+  if (opts.dbPath) return opts.dbPath
+  if (opts.dataDir) return join(opts.dataDir, `${APP}.db`)
+  if (process.env.CSB_DB_PATH) return process.env.CSB_DB_PATH
+  if (process.env.CSB_DATA_DIR) return join(process.env.CSB_DATA_DIR, `${APP}.db`)
+  return defaultDbPath()
 }
 
 /** C# stores decimals as invariant-culture TEXT ("0.3982"). Parse leniently to number|null. */
@@ -96,8 +118,8 @@ export class SqliteDataSource implements ScannerDataSource {
   private pollTimer: NodeJS.Timeout | null = null
   private readonly listeners = new Set<(s: Signal[]) => void>()
 
-  constructor(dbPath = process.env.CSB_DB_PATH || defaultDbPath()) {
-    this.dbPath = dbPath
+  constructor(opts: DataLocation = {}) {
+    this.dbPath = resolveDbPath(opts)
   }
 
   private open(): Database.Database | null {

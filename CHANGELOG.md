@@ -9,6 +9,15 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.6.0 - 2026-07-24
+
+### NEW
+- **Custom engine data folder.** Users who start the C# engine with `-f "datafolder"` write their DB outside the standard OS path, so the UI showed no signals. You can now point the app at that folder: a gear in the header opens a data-folder setting with a native folder picker (desktop), and the bridge re-points there (DB, settings and per-exchange candle DBs all follow). Dev/browser: set `CSB_DATA_DIR` on the bridge.
+- **"No data" banner.** When the bridge finds no database (or an empty one) at the path it's reading, an amber banner names the exact path and explains the `-f` fix - instead of a silent empty screen.
+
+### TECH
+- Bridge: `resolveDbPath({ dataDir })` / `resolveSettingsPath({ dataDir })` centralise path resolution (precedence: explicit path → dataDir → `CSB_DB_PATH` → `CSB_DATA_DIR` → OS default); `startBridgeDefault` takes a `dataDir`. Electron gains a preload (`window.csb`) + IPC to pick/persist the folder and restart the in-process bridge.
+
 ## v0.5.0 - 2026-07-24
 
 **Phase A milestone.** First tagged release: a cross-platform desktop app (macOS `.dmg` + Windows `.exe`) that reads Marius' C# CryptoScanBot engine's SQLite oracle read-only and presents signals, filters, symbols and engine status live. This marks the end of Phase A (read the engine's DB); Phase B will add a two-way headless/SignalR link for live, in-memory data (barometer, prices, real engine liveness).

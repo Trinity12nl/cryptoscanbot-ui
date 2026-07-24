@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { EngineSettings } from '@csb/shared'
 import { STRATEGY_NAMES } from '@csb/shared'
-import { defaultDbPath } from './sqlite-source.js'
+import { resolveDbPath, type DataLocation } from './sqlite-source.js'
 
 /**
  * Reads the C# engine's settings JSON (next to the oracle DB) and normalises it to EngineSettings.
@@ -17,10 +17,10 @@ const STRATEGY_NAME_BY_LOWER = new Map(
   Object.values(STRATEGY_NAMES).map((n) => [n.toLowerCase(), n]),
 )
 
-/** Settings file lives beside the DB, e.g. .../CryptoScanBot/CryptoScanBot-settings.json */
-export function defaultSettingsPath(): string {
-  const dbPath = process.env.CSB_DB_PATH || defaultDbPath()
-  return join(dirname(dbPath), 'CryptoScanBot-settings.json')
+/** Settings file lives beside the DB, e.g. .../CryptoScanBot/CryptoScanBot-settings.json. Derives
+ * from the SAME resolved data location as the DB, so a custom `-f` folder is honoured for both. */
+export function resolveSettingsPath(opts: DataLocation = {}): string {
+  return join(dirname(resolveDbPath(opts)), 'CryptoScanBot-settings.json')
 }
 
 interface SideConfig { Strategy?: string[]; Interval?: string[] }
@@ -79,8 +79,8 @@ export class SettingsSource {
   private timer: NodeJS.Timeout | null = null
   private readonly listeners = new Set<(s: EngineSettings) => void>()
 
-  constructor(path = defaultSettingsPath()) {
-    this.path = path
+  constructor(opts: DataLocation = {}) {
+    this.path = resolveSettingsPath(opts)
   }
 
   /** Current settings, re-reading the file only when it has changed on disk. */

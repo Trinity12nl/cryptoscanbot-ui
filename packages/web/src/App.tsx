@@ -7,6 +7,7 @@ import { Header } from './components/Header.tsx'
 import { FilterBar, DEFAULT_FILTERS, type Filters } from './components/FilterBar.tsx'
 import { SignalTable } from './components/SignalTable.tsx'
 import { SymbolsPanel } from './components/SymbolsPanel.tsx'
+import { NoDataBanner } from './components/NoDataBanner.tsx'
 
 // Full known catalogs so the filters always show every strategy/timeframe - the ones the engine
 // is not scanning appear dimmed as "not scanning" (like the previous app version), instead of only
@@ -38,6 +39,7 @@ function scannedFilters(settings: EngineSettings | null): Filters {
 export function App() {
   const [info, setInfo] = useState<EngineInfo | null>(null)
   const [live, setLive] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [signals, setSignals] = useState<Signal[]>([])
   const [symbols, setSymbols] = useState<SymbolRow[]>([])
   const [prices, setPrices] = useState<PriceMap>({})
@@ -56,6 +58,7 @@ export function App() {
     Promise.all([fetchInfo(), fetchSignals(1000), fetchPrices(), fetchSettings()])
       .then(([i, s, p, st]) => { if (alive) { setInfo(i); setSignals(s); setPrices(p); setSettings(st); if (st) prevConfigSig.current = st.configSignature } })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'load failed'))
+      .finally(() => { if (alive) setLoaded(true) })
 
     const off = connectBridge((ev) => {
       if (ev.type === 'info') setInfo(ev.info)
@@ -161,9 +164,14 @@ export function App() {
   // Paginated view: show PAGE_SIZE rows, "Load more" reveals the next page.
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount])
 
+  // The bridge is reading a DB with no data (usual cause: an engine started with `-f` writing
+  // elsewhere). Guarded by `loaded` so it doesn't flash before the first fetch resolves.
+  const emptyDb = loaded && (info?.connected ?? false) && symbols.length === 0 && signals.length === 0
+
   return (
     <div className="flex h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <Header info={info} live={live} shown={visible.length} today={todayCount} />
+      <NoDataBanner info={info} empty={emptyDb} />
       {error && (
         <div className="bg-red-500/10 px-4 py-2 text-sm text-red-600 dark:text-red-400">
           {error} - is the bridge running and the C# engine writing its DB?
