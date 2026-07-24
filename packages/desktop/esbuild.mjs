@@ -54,10 +54,23 @@ const ctx = await esbuild.context({
   outfile: 'dist/main.mjs',
 })
 
+// The preload runs in the renderer's isolated world and must be CommonJS (no ESM banner). Tiny
+// (contextBridge + ipcRenderer), so electron is the only external.
+const preloadCtx = await esbuild.context({
+  ...common,
+  format: 'cjs',
+  banner: {},
+  entryPoints: ['src/preload.ts'],
+  outfile: 'dist/preload.cjs',
+})
+
 if (watch) {
   await ctx.watch()
+  await preloadCtx.watch()
   console.log('[desktop] esbuild watching…')
 } else {
   await ctx.rebuild()
+  await preloadCtx.rebuild()
   await ctx.dispose()
+  await preloadCtx.dispose()
 }
