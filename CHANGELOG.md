@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **CryptoScanBot-app** (this UI + bridge) are documented here.
+All notable changes to **CryptoScanBot-ui** (this UI + bridge) are documented here.
 Format: change type - **NEW** / **IMPROVED** / **FIX** / **TECH** - and what changed.
 Uses [semantic versioning](https://semver.org/).
 

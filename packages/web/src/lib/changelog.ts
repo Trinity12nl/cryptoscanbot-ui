@@ -1,4 +1,4 @@
-// The changelog viewer renders CryptoScanBot-app/CHANGELOG.md directly (Vite ?raw),
+// The changelog viewer renders CryptoScanBot-ui/CHANGELOG.md directly (Vite ?raw),
 // so the markdown file stays the single source of truth - editing it updates the
 // in-app viewer and the "what's new" dot automatically, with no duplicated content.
 import changelogRaw from '../../../../CHANGELOG.md?raw'
