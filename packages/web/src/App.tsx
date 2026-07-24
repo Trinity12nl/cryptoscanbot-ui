@@ -96,13 +96,23 @@ export function App() {
   // filtered count climbs over time - polling lets it self-correct without a manual reload.
   useEffect(() => {
     let alive = true
-    const load = () => {
+    // silent = background refresh: keep the last good list on failure and don't raise the banner.
+    // The engine churns its DB on restart/backfill and briefly 500s reads, which isn't worth
+    // alarming over. Only the initial load / exchange switch surfaces a hard error.
+    const load = (silent: boolean) => {
       fetchSymbols(info?.exchange ?? undefined)
-        .then((sy) => { if (alive) setSymbols(sy) })
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : 'symbols load failed'))
+        .then((sy) => {
+          if (!alive) return
+          setSymbols(sy)
+          setError((prev) => (prev && prev.startsWith('symbols') ? null : prev)) // clear stale symbols error
+        })
+        .catch((e: unknown) => {
+          if (!alive || silent) return
+          setError(e instanceof Error ? e.message : 'symbols load failed')
+        })
     }
-    load()
-    const id = setInterval(load, 60_000)
+    load(false)
+    const id = setInterval(() => load(true), 60_000)
     return () => { alive = false; clearInterval(id) }
   }, [info?.exchange])
 

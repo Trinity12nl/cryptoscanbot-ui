@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.3.4 - 2026-07-24
+
+### FIX
+- **No false error banner on a transient symbol refresh.** The 60s background symbol refresh is now silent - it keeps the last good list when a poll fails (the engine briefly 500s DB reads while it churns its tables on restart/backfill) instead of raising the red banner, and a successful fetch clears any stale symbols error. Only the initial load / exchange switch surfaces a hard error.
+
 ## v0.3.3 - 2026-07-24
 
 ### NEW
