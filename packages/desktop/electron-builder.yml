@@ -15,11 +15,11 @@ extraResources:
   - from: ../web/dist
     to: web
 
-# Rebuild native deps (better-sqlite3) against Electron instead of system Node.
-# NOTE: getting Electron's ABI reliably still needs work - there's no Electron prebuilt for
-# better-sqlite3, and compiling from source needs a node-gyp toolchain the runners lack out of the
-# box (macOS: Python distutils/setuptools; Windows: MSVC). See tasks/todo-electron-abi.md.
-npmRebuild: true
+# We rebuild better-sqlite3 for Electron's ABI ourselves, BEFORE electron-builder runs, via the
+# `rebuild:native` script (electron-rebuild downloads the electron-v130 prebuilt - no compiler). So
+# electron-builder must NOT rebuild again: under pnpm's symlinked tree its own rebuild is unreliable
+# and could revert the ABI. It just packages the correct-ABI binary we already placed.
+npmRebuild: false
 
 mac:
   target:
