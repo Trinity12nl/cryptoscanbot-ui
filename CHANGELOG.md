@@ -15,7 +15,7 @@ Uses [semantic versioning](https://semver.org/).
 - **Packaged app now launches (better-sqlite3 Electron ABI).** The `.dmg`/`.exe` shipped a `better-sqlite3` compiled for Node's ABI (127), but Electron 33 needs ABI 130 - so the in-process bridge failed to load it and the window never appeared. The build now runs `electron-rebuild` before packaging, which **downloads** better-sqlite3's official `electron-v130` prebuilt for each platform (macOS arm64 + Windows x64) - no C/C++ compiler, Python distutils or MSVC needed on any runner. Verified: the binary inside the built `.dmg` is byte-identical to the upstream Electron prebuilt.
 
 ### TECH
-- `@csb/desktop`: added `@electron/rebuild` devDep + a `rebuild:native` script (`electron-rebuild -f -o better-sqlite3`), wired into `dist` before `electron-builder`. Set `npmRebuild: false` in `electron-builder.yml` (electron-builder's own rebuild was unreliable under pnpm's symlinked store and could revert the ABI). CI `build.yml` fetches the Electron prebuilt via that script instead of the old Node-ABI `pnpm rebuild better-sqlite3`.
+- **Electron-ABI build wiring.** `@csb/desktop` gains an `@electron/rebuild` devDep + a `rebuild:native` script (`electron-rebuild -f -o better-sqlite3`), wired into `dist` before `electron-builder`. Set `npmRebuild: false` in `electron-builder.yml` (electron-builder's own rebuild was unreliable under pnpm's symlinked store and could revert the ABI). CI `build.yml` fetches the Electron prebuilt via that script instead of the old Node-ABI `pnpm rebuild better-sqlite3`.
 
 ## v0.6.0 - 2026-07-24
 
@@ -24,7 +24,7 @@ Uses [semantic versioning](https://semver.org/).
 - **"No data" banner.** When the bridge finds no database (or an empty one) at the path it's reading, an amber banner names the exact path and explains the `-f` fix - instead of a silent empty screen.
 
 ### TECH
-- Bridge: `resolveDbPath({ dataDir })` / `resolveSettingsPath({ dataDir })` centralise path resolution (precedence: explicit path → dataDir → `CSB_DB_PATH` → `CSB_DATA_DIR` → OS default); `startBridgeDefault` takes a `dataDir`. Electron gains a preload (`window.csb`) + IPC to pick/persist the folder and restart the in-process bridge.
+- **Centralised data-path resolution.** Bridge: `resolveDbPath({ dataDir })` / `resolveSettingsPath({ dataDir })` centralise path resolution (precedence: explicit path → dataDir → `CSB_DB_PATH` → `CSB_DATA_DIR` → OS default); `startBridgeDefault` takes a `dataDir`. Electron gains a preload (`window.csb`) + IPC to pick/persist the folder and restart the in-process bridge.
 
 ## v0.5.0 - 2026-07-24
 
