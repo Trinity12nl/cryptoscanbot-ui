@@ -53,8 +53,8 @@ export function App() {
 
   useEffect(() => {
     let alive = true
-    Promise.all([fetchInfo(), fetchSignals(1000), fetchSymbols(), fetchPrices(), fetchSettings()])
-      .then(([i, s, sy, p, st]) => { if (alive) { setInfo(i); setSignals(s); setSymbols(sy); setPrices(p); setSettings(st); if (st) prevConfigSig.current = st.configSignature } })
+    Promise.all([fetchInfo(), fetchSignals(1000), fetchPrices(), fetchSettings()])
+      .then(([i, s, p, st]) => { if (alive) { setInfo(i); setSignals(s); setPrices(p); setSettings(st); if (st) prevConfigSig.current = st.configSignature } })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'load failed'))
 
     const off = connectBridge((ev) => {
@@ -88,6 +88,23 @@ export function App() {
 
     return () => { alive = false; off(); if (clearTimer.current) clearTimeout(clearTimer.current) }
   }, [])
+
+  // Load the symbol list for the ACTIVE exchange, and reload it when the engine switches exchange
+  // (info.exchange updates live via the bridge). Without the filter we'd show a cross-exchange union
+  // (a symbol exists once per exchange), which doesn't match what the scanner is actually running.
+  // Also refresh every 60s: right after a switch the engine backfills volumes gradually, so the
+  // filtered count climbs over time - polling lets it self-correct without a manual reload.
+  useEffect(() => {
+    let alive = true
+    const load = () => {
+      fetchSymbols(info?.exchange ?? undefined)
+        .then((sy) => { if (alive) setSymbols(sy) })
+        .catch((e: unknown) => setError(e instanceof Error ? e.message : 'symbols load failed'))
+    }
+    load()
+    const id = setInterval(load, 60_000)
+    return () => { alive = false; clearInterval(id) }
+  }, [info?.exchange])
 
   // Default the filters to what the engine is scanning, once, when settings first arrive.
   useEffect(() => {

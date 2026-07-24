@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
-import type { BridgeEvent, ScannerDataSource } from '@csb/shared'
+import type { BridgeEvent, EngineInfo, ScannerDataSource } from '@csb/shared'
 import type { TickerSource } from './ticker-source.js'
 import type { SettingsSource } from './settings-source.js'
 
@@ -35,6 +35,16 @@ export function startBridge(
   opts: { staticDir?: string; settings?: SettingsSource } = {},
 ): { close: () => void } {
   const settingsSource = opts.settings ?? null
+
+  // The active exchange is the user's choice in settings (General.ActivateExchangeName), NOT the most
+  // recently symbol-refreshed one - the oracle's LastTimeFetched lags a switch by up to an hour. So
+  // prefer the settings value for info.exchange, falling back to the oracle's guess when unavailable.
+  const readInfo = async (): Promise<EngineInfo> => {
+    const info = await source.info()
+    const active = settingsSource?.get()?.activeExchange
+    return active ? { ...info, exchange: active } : info
+  }
+
   const json = (res: ServerResponse, code: number, body: unknown) => {
     const s = JSON.stringify(body)
     res.writeHead(code, {
@@ -63,7 +73,7 @@ export function startBridge(
     const url = new URL(req.url ?? '/', `http://localhost:${port}`)
     void (async () => {
       try {
-        if (url.pathname === '/api/info') return json(res, 200, await source.info())
+        if (url.pathname === '/api/info') return json(res, 200, await readInfo())
         if (url.pathname === '/api/signals') {
           const limit = Number(url.searchParams.get('limit') ?? '200')
           return json(res, 200, await source.getSignals({ limit }))
@@ -101,7 +111,7 @@ export function startBridge(
   wss.on('connection', (ws) => {
     alive.add(ws)
     ws.on('pong', () => alive.add(ws))
-    void source.info().then((info) => send(ws, { type: 'info', info }))
+    void readInfo().then((info) => send(ws, { type: 'info', info }))
     send(ws, { type: 'prices', prices: ticker.getPrices() })
     const settings = settingsSource?.get()
     if (settings) send(ws, { type: 'settings', settings })
@@ -122,6 +132,19 @@ export function startBridge(
     for (const ws of wss.clients) send(ws, ev)
   })
 
+  // Poll engine info and broadcast when the active exchange (or connected state) changes, so the
+  // header updates on an exchange switch without a manual page refresh. Cheap - one indexed row.
+  let lastInfoKey = ''
+  const infoPoll = setInterval(() => {
+    void readInfo().then((info) => {
+      const key = `${info.exchange}|${info.connected}`
+      if (key === lastInfoKey) return
+      lastInfoKey = key
+      const ev: BridgeEvent = { type: 'info', info }
+      for (const ws of wss.clients) send(ws, ev)
+    }).catch(() => { /* transient; retry next tick */ })
+  }, 5_000)
+
   http.listen(port, '127.0.0.1', () => {
     // eslint-disable-next-line no-console
     console.log(`[bridge] listening on http://127.0.0.1:${port}`)
@@ -130,6 +153,7 @@ export function startBridge(
   return {
     close: () => {
       clearInterval(heartbeat)
+      clearInterval(infoPoll)
       unsubscribe()
       unsubscribePrices()
       unsubscribeSettings?.()

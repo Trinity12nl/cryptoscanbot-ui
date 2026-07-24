@@ -18,8 +18,9 @@ export async function fetchSignals(limit = 200): Promise<Signal[]> {
   return r.json() as Promise<Signal[]>
 }
 
-export async function fetchSymbols(): Promise<SymbolRow[]> {
-  const r = await fetch('/api/symbols')
+export async function fetchSymbols(exchange?: string): Promise<SymbolRow[]> {
+  const url = exchange ? `/api/symbols?exchange=${encodeURIComponent(exchange)}` : '/api/symbols'
+  const r = await fetch(url)
   if (!r.ok) throw new Error(`symbols ${r.status}`)
   return r.json() as Promise<SymbolRow[]>
 }
