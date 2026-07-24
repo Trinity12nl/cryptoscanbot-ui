@@ -191,6 +191,13 @@ export class SqliteDataSource implements ScannerDataSource {
     return () => { this.listeners.delete(cb) }
   }
 
+  /** Force an immediate poll for newly-inserted signals instead of waiting for the next interval
+   * tick. Used by the SignalR trigger (Phase B) for near-instant push. No-op until polling has been
+   * started by subscribeSignals(), so we never flood by emitting the whole backlog. */
+  pollNow(): void {
+    if (this.pollTimer) this.poll()
+  }
+
   /** Seed lastId and poll for new signals; push deltas to subscribers. */
   private ensurePolling(): void {
     if (this.pollTimer) return

@@ -3,5 +3,7 @@
 export { startBridgeDefault } from './bootstrap.js'
 export { startBridge } from './server.js'
 export { SqliteDataSource, defaultDbPath, resolveDbPath, type DataLocation } from './sqlite-source.js'
+export { SignalrSource, resolveSignalrUrl, type SignalrSignalSnapshot } from './signalr-source.js'
+export { HybridDataSource } from './hybrid-source.js'
 export { TickerSource } from './ticker-source.js'
 export { SettingsSource, resolveSettingsPath } from './settings-source.js'

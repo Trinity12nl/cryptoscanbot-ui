@@ -9,6 +9,14 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## Unreleased
+
+### NEW
+- **Phase B live link (opt-in).** The bridge can now connect to the C# engine's SignalR hub (Marius' avalonia `SignalRService`, default `http://localhost:5200/signalr/signals`) for **real engine liveness** - "online" now means a live hub connection, not just "the DB file exists" - and **near-instant signal push** (a new signal pokes the oracle to read immediately instead of waiting for the ~1.5s poll). Off by default; enable with `CSB_SIGNALR=1` (or `CSB_SIGNALR_URL=...`) on the bridge **and** `General.SignalREnabled = true` in the engine. Without it, behaviour is exactly as before.
+
+### TECH
+- **SignalR hybrid data source.** New `SignalrSource` (self-managed reconnect, graceful when the hub is absent) + `HybridDataSource` compose behind the existing `ScannerDataSource` seam: the SQLite oracle stays the source of truth for signal payloads/history/symbols, SignalR adds liveness + a push trigger, so the UI is unchanged. `SqliteDataSource` gains `pollNow()`. `Signal` gains optional per-timeframe `barometer`/`trend` snapshots (SignalR-only; the oracle doesn't store them) - plumbed through now, surfaced in the UI next.
+
 ## v0.6.2 - 2026-07-25
 
 ### FIX
