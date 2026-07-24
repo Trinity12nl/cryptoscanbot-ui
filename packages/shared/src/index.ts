@@ -12,15 +12,45 @@ export type TradeSide = 'long' | 'short'
 /** C# CryptoSignalStrategy enum (avalonia branch) -> display name. */
 export const STRATEGY_NAMES: Record<number, string> = {
   0: 'Jump', 1: 'Sbm1', 2: 'Sbm2', 3: 'Sbm3', 6: 'Stobb', 7: 'StobbMulti',
-  10: 'StoRsi', 11: 'StoRsiMulti', 25: 'Nwe', 28: 'Vbs', 29: 'AtrRb', 30: 'Dbr',
-  31: 'Trend', 42: 'Bbma', 43: 'BbmaOmni', 52: 'StochDir', 53: 'BbRsiEngulfing',
-  54: 'IchimokuKumoBreakout', 60: 'ChochPrimary', 61: 'ChochPrimaryPullback',
+  10: 'StoRsi', 11: 'StoRsiMulti', 25: 'Nwe', 26: 'NweNp', 27: 'NweBb', 28: 'Vbs',
+  29: 'AtrRb', 30: 'Dbr', 31: 'Trend', 42: 'Bbma', 43: 'BbmaOmni', 52: 'StochDir',
+  53: 'BbRsiEngulfing', 54: 'IchimokuKumoBreakout', 55: 'BbSqueeze',
+  60: 'ChochPrimary', 61: 'ChochPrimaryPullback',
   62: 'ChochSecondary', 63: 'ChochSecondaryPullback', 1000: 'DominantLevel',
   1001: 'DominantLevelNear', 1003: 'FairValueGap', 1004: 'OrderBlock',
+  1006: 'OrderBlockRejection',
 }
 
 export function strategyName(id: number): string {
   return STRATEGY_NAMES[id] ?? `#${id}`
+}
+
+// Normalise a strategy string to letters+digits only, so the engine's dotted settings keys
+// (e.g. "bbma.omni", "stobb.multi") compare equal to our display names ("BbmaOmni", "StobbMulti").
+const normStrategy = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+// normalised display name -> enum id (covers every key that is just the punctuation-stripped name).
+const STRATEGY_ID_BY_NORM_NAME = new Map<string, number>(
+  Object.entries(STRATEGY_NAMES).map(([id, name]) => [normStrategy(name), Number(id)]),
+)
+
+// The engine settings-file keys whose form is NOT the punctuation-stripped display name. Ported
+// from the avalonia StrategyRegistration list (CryptoScanner.Analyzers/*/*Plugin.cs). Keys here are
+// already normalised.
+const STRATEGY_ID_BY_ALIAS = new Map<string, number>([
+  ['dlz', 1000], ['dlznear', 1001], ['fvg', 1003], ['smc', 1004], ['smcrejection', 1006],
+])
+
+/** Map an engine settings-file strategy key (e.g. "bbma.omni", "dlz") to its enum id, or null. */
+export function strategyIdFromSettingsKey(key: string): number | null {
+  const k = normStrategy(key)
+  return STRATEGY_ID_BY_ALIAS.get(k) ?? STRATEGY_ID_BY_NORM_NAME.get(k) ?? null
+}
+
+/** Map an engine settings-file strategy key to our display name, or null if unknown. */
+export function strategyNameFromSettingsKey(key: string): string | null {
+  const id = strategyIdFromSettingsKey(key)
+  return id == null ? null : strategyName(id)
 }
 
 /** Interval name -> duration in seconds (for candle open/close identity). */

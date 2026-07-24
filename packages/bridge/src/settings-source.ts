@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { EngineSettings } from '@csb/shared'
-import { STRATEGY_NAMES } from '@csb/shared'
+import { strategyNameFromSettingsKey } from '@csb/shared'
 import { resolveDbPath, type DataLocation } from './sqlite-source.js'
 
 /**
@@ -10,12 +10,10 @@ import { resolveDbPath, type DataLocation } from './sqlite-source.js'
  * ACTIVE exchange only (the settings file is the active engine's config).
  *
  * The engine keeps the enabled strategies/intervals per side under Signal.Long / Signal.Short (e.g.
- * Strategy: ["sbm1","stobb"], Interval: ["1m","3m","5m"]). We union both sides and map the strategy
- * keys (case-insensitively) to the display names our signals use (STRATEGY_NAMES).
+ * Strategy: ["bbma.omni","stobb"], Interval: ["1m","3m","5m"]). We union both sides and map the
+ * strategy keys to the display names our signals use via `strategyNameFromSettingsKey` - which
+ * handles the engine's dotted keys ("bbma.omni") and aliases ("dlz" -> DominantLevel).
  */
-const STRATEGY_NAME_BY_LOWER = new Map(
-  Object.values(STRATEGY_NAMES).map((n) => [n.toLowerCase(), n]),
-)
 
 /** Settings file lives beside the DB, e.g. .../CryptoScanBot/CryptoScanBot-settings.json. Derives
  * from the SAME resolved data location as the DB, so a custom `-f` folder is honoured for both. */
@@ -34,12 +32,12 @@ function normalize(raw: RawSettings, lastChangedMs: number): EngineSettings {
   const long = raw.Signal?.Long ?? {}
   const short = raw.Signal?.Short ?? {}
 
-  const stratKeys = new Set(
-    [...(long.Strategy ?? []), ...(short.Strategy ?? [])].map((s) => s.toLowerCase()),
-  )
-  const enabledStrategies = [...stratKeys]
-    .map((k) => STRATEGY_NAME_BY_LOWER.get(k))
-    .filter((n): n is string => n != null)
+  const stratKeys = new Set([...(long.Strategy ?? []), ...(short.Strategy ?? [])])
+  const enabledStrategies = [...new Set(
+    [...stratKeys]
+      .map((k) => strategyNameFromSettingsKey(k))
+      .filter((n): n is string => n != null),
+  )]
 
   const enabledIntervals = [...new Set([...(long.Interval ?? []), ...(short.Interval ?? [])])]
 
