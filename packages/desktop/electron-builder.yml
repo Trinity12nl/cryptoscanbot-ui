@@ -15,12 +15,11 @@ extraResources:
   - from: ../web/dist
     to: web
 
-# Rebuild native deps (better-sqlite3) against Electron instead of system Node. Build from source so
-# the module gets Electron's ABI - there is no Electron prebuilt for better-sqlite3, and a copied
-# Node-ABI build fails to load at runtime ("compiled against a different Node.js version"). CI runners
-# have a working node-gyp toolchain; a local build needs one too (Python <=3.12 with distutils).
+# Rebuild native deps (better-sqlite3) against Electron instead of system Node.
+# NOTE: getting Electron's ABI reliably still needs work - there's no Electron prebuilt for
+# better-sqlite3, and compiling from source needs a node-gyp toolchain the runners lack out of the
+# box (macOS: Python distutils/setuptools; Windows: MSVC). See tasks/todo-electron-abi.md.
 npmRebuild: true
-buildDependenciesFromSource: true
 
 mac:
   target:
