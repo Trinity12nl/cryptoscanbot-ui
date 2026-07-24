@@ -9,6 +9,14 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.6.1 - 2026-07-24
+
+### FIX
+- **Packaged app now launches (better-sqlite3 Electron ABI).** The `.dmg`/`.exe` shipped a `better-sqlite3` compiled for Node's ABI (127), but Electron 33 needs ABI 130 - so the in-process bridge failed to load it and the window never appeared. The build now runs `electron-rebuild` before packaging, which **downloads** better-sqlite3's official `electron-v130` prebuilt for each platform (macOS arm64 + Windows x64) - no C/C++ compiler, Python distutils or MSVC needed on any runner. Verified: the binary inside the built `.dmg` is byte-identical to the upstream Electron prebuilt.
+
+### TECH
+- `@csb/desktop`: added `@electron/rebuild` devDep + a `rebuild:native` script (`electron-rebuild -f -o better-sqlite3`), wired into `dist` before `electron-builder`. Set `npmRebuild: false` in `electron-builder.yml` (electron-builder's own rebuild was unreliable under pnpm's symlinked store and could revert the ABI). CI `build.yml` fetches the Electron prebuilt via that script instead of the old Node-ABI `pnpm rebuild better-sqlite3`.
+
 ## v0.6.0 - 2026-07-24
 
 ### NEW

@@ -35,8 +35,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Approve native builds (pnpm)
-        run: pnpm rebuild better-sqlite3
+      # Fetch better-sqlite3's Electron prebuilt (ABI 130 for Electron 33). This DOWNLOADS a prebuilt
+      # binary - no node-gyp/distutils/MSVC toolchain needed - so it works identically on macOS and
+      # Windows. The `dist` script also runs this, but doing it here fails fast if a prebuilt is ever
+      # missing for a target.
+      - name: Rebuild better-sqlite3 for Electron
+        run: pnpm --filter @csb/desktop run rebuild:native
 
       - name: Build desktop
         run: ${{ matrix.build }}

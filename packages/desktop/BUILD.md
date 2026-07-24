@@ -9,8 +9,10 @@ running (writing its DB) for the app to show live data.
 - **main process** - bundled by esbuild into `dist/main.mjs` (ESM, so `ccxt` resolves its ESM build).
 - **web UI** - built by Vite into `packages/web/dist`, copied into the app and served by the
   in-process bridge at `http://127.0.0.1:4319` (same-origin: no CORS, no proxy).
-- **native module** - `better-sqlite3`, rebuilt for Electron's ABI by electron-builder. It resolves
-  a prebuilt binary per platform, so no C/C++ compiler is needed on a normal setup.
+- **native module** - `better-sqlite3`. The `dist` script rebuilds it for Electron's ABI via the
+  `rebuild:native` step (`electron-rebuild`), which **downloads** better-sqlite3's Electron prebuilt
+  (`electron-v130` for Electron 33) - no C/C++ compiler, distutils or MSVC needed on any platform.
+  electron-builder itself has `npmRebuild: false`, so it just packages the binary we placed.
 
 ## macOS (.dmg)
 
@@ -58,15 +60,15 @@ reads automatically - so this is exactly what Marius needs to run **his** engine
   by `.pnpmfile.cjs` - they force an unnecessary native compile and we don't need them.
 - The C# engine is not bundled yet (Step 2). Today the app reads a running engine's oracle DB.
 
-### After a local macOS build: restore the dev bridge
+### After a local build: restore the dev bridge
 
-electron-builder rebuilds `better-sqlite3` against **Electron's** ABI, in the shared pnpm store.
-That breaks the plain-Node dev bridge (`ERR_DLOPEN_FAILED`, `NODE_MODULE_VERSION` mismatch). The
-packaged `.app` has its own copy, so restoring the store copy for Node is safe:
+The `dist` build's `rebuild:native` step swaps the **one shared** pnpm-store copy of `better-sqlite3`
+to **Electron's** ABI (130). That breaks the plain-Node dev bridge (`ERR_DLOPEN_FAILED`,
+`NODE_MODULE_VERSION` mismatch). The packaged `.app`/`.exe` has its own copy, so flipping the store
+copy back to Node is safe:
 
 ```sh
-( cd node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3 \
-  && rm -f build/Release/better_sqlite3.node && npx --yes prebuild-install -r node )
+pnpm rebuild better-sqlite3
 ```
 
-(CI is unaffected - each runner is a fresh checkout, and only builds one target.)
+(CI is unaffected - each runner is a fresh checkout, builds one target, and never runs the dev bridge.)
