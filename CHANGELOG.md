@@ -9,6 +9,16 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.5.0 - 2026-07-24
+
+**Phase A milestone.** First tagged release: a cross-platform desktop app (macOS `.dmg` + Windows `.exe`) that reads Marius' C# CryptoScanBot engine's SQLite oracle read-only and presents signals, filters, symbols and engine status live. This marks the end of Phase A (read the engine's DB); Phase B will add a two-way headless/SignalR link for live, in-memory data (barometer, prices, real engine liveness).
+
+### NEW
+- **Automated release builds.** Pushing a `v*` tag now builds the macOS and Windows installers on their own runners and publishes them as a GitHub Release with the `.dmg` and `.exe` attached.
+
+### TECH
+- Rolled up everything from v0.3.x: live exchange-switch push, active-exchange-from-settings, active-exchange symbol list, and the silent background symbol refresh.
+
 ## v0.3.4 - 2026-07-24
 
 ### FIX
