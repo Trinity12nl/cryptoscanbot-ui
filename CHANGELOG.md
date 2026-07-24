@@ -9,6 +9,14 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.6.2 - 2026-07-25
+
+### FIX
+- **Signals from dotted/aliased strategies no longer hidden.** The default signal filter mirrors the strategies the engine is scanning, but the bridge matched the engine's settings keys to strategy names by naive lowercasing - so the engine's dotted keys (`bbma.omni`, `stobb.multi`, `choch.primary`) and aliases (`dlz`, `fvg`, `smc`) never matched, and their signals (e.g. BbmaOmni on USDCUSDT / USD1USDT) were silently filtered out. Strategy-key matching is now ported from the engine's own plugin registrations, so all 27 settings keys resolve correctly.
+
+### TECH
+- **Strategy-key mapping.** `@csb/shared` gains `strategyNameFromSettingsKey` (normalises punctuation + a small alias table for `dlz`/`dlz.near`/`fvg`/`smc`/`smc.rejection`) and the 4 enum ids that were missing from `STRATEGY_NAMES` (`NweNp`, `NweBb`, `BbSqueeze`, `OrderBlockRejection`). The bridge's `enabledStrategies` now uses it instead of the lowercased-name heuristic.
+
 ## v0.6.1 - 2026-07-24
 
 ### FIX
