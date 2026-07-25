@@ -98,6 +98,17 @@ ipcMain.handle('csb:pickDataFolder', async () => {
   return dataFolderState()
 })
 
+// Set the data folder directly to a known-good path (the banner's one-click "Use this folder"
+// suggestion). Same effect as picking it in the dialog, without opening one. Ignores empty input.
+ipcMain.handle('csb:setDataFolder', (_e, dir: unknown) => {
+  if (typeof dir === 'string' && dir) {
+    writeConfig({ dataDir: dir })
+    startOrRestartBridge()
+    mainWindow?.webContents.reload()
+  }
+  return dataFolderState()
+})
+
 ipcMain.handle('csb:clearDataFolder', () => {
   writeConfig({ dataDir: null })
   startOrRestartBridge()

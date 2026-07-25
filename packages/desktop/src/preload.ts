@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('csb', {
   getDataFolder: (): Promise<DataFolderState> => ipcRenderer.invoke('csb:getDataFolder'),
   /** Opens a native folder picker; resolves to the new state, or null if the user cancelled. */
   pickDataFolder: (): Promise<DataFolderState | null> => ipcRenderer.invoke('csb:pickDataFolder'),
+  /** Sets the data folder directly to a known path (the banner's one-click suggestion fix). */
+  setDataFolder: (dir: string): Promise<DataFolderState> =>
+    ipcRenderer.invoke('csb:setDataFolder', dir),
   /** Reverts to the default OS location. */
   clearDataFolder: (): Promise<DataFolderState> => ipcRenderer.invoke('csb:clearDataFolder'),
 })
