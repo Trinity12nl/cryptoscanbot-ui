@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type {
   EngineInfo, ScannerDataSource, Signal, SignalBarometer, SignalTrend, TradeSide, TrendDir, SymbolRow,
 } from '@csb/shared'
@@ -40,6 +40,32 @@ export function resolveDbPath(opts: DataLocation = {}): string {
   if (process.env.CSB_DB_PATH) return process.env.CSB_DB_PATH
   if (process.env.CSB_DATA_DIR) return join(process.env.CSB_DATA_DIR, `${APP}.db`)
   return defaultDbPath()
+}
+
+/**
+ * Given a folder the user might have picked, find the folder that actually contains the oracle DB
+ * (`CryptoScanBot.db`), checking in order: the folder itself -> its immediate subfolders -> its
+ * parent. Returns that folder, or null when no DB is found nearby.
+ *
+ * Pure lookup - it never changes anything. Its job is to power the "did you mean this folder?"
+ * suggestion in the no-database banner, for the common trap where a user points the app one level
+ * off: the engine writes the DB in e.g. `…/Futures` but also creates a same-looking `Binance Futures`
+ * subfolder right next to it, so it's easy to pick the child (parent-check catches that) or the
+ * grandparent (subfolder-check catches that). We only ever SUGGEST the result; the user still clicks.
+ */
+export function findOracleDbDir(dir: string): string | null {
+  const hasDb = (d: string): boolean => {
+    try { return existsSync(join(d, `${APP}.db`)) } catch { return false }
+  }
+  if (hasDb(dir)) return dir
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && hasDb(join(dir, entry.name))) return join(dir, entry.name)
+    }
+  } catch { /* dir unreadable/missing; fall through to the parent check */ }
+  const parent = dirname(dir)
+  if (parent && parent !== dir && hasDb(parent)) return parent
+  return null
 }
 
 /** C# stores decimals as invariant-culture TEXT ("0.3982"). Parse leniently to number|null. */
@@ -163,6 +189,9 @@ export class SqliteDataSource implements ScannerDataSource {
     // with the live hub state but keeps `dbPresent` as this file-existence check.
     const dbPresent = existsSync(this.dbPath)
     const connected = dbPresent
+    // Only look for a nearby DB when the expected one is missing - so the banner can offer the folder
+    // the user probably meant (the "picked one level off" trap). Never re-points on its own.
+    const suggestedDataDir = dbPresent ? null : findOracleDbDir(dirname(this.dbPath))
     let exchange: string | null = null
     const db = this.open()
     if (db) {
@@ -173,7 +202,10 @@ export class SqliteDataSource implements ScannerDataSource {
         exchange = row?.Name ?? null
       } catch { /* schema may differ; leave null */ }
     }
-    return { exchange, dbPath: this.dbPath, connected, dbPresent, lastChangeMs: this.lastChangeMs }
+    return {
+      exchange, dbPath: this.dbPath, connected, dbPresent, suggestedDataDir,
+      lastChangeMs: this.lastChangeMs,
+    }
   }
 
   async getSignals(opts: { limit?: number; sinceMs?: number } = {}): Promise<Signal[]> {
