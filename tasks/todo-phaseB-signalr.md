@@ -91,33 +91,48 @@ the UI never changes.
       the bridge with `CSB_SIGNALR=1`, fire a signal - confirm instant push + "online" only when the
       hub is connected (kill the engine -> goes offline even though the DB file still exists).
 
-### #2 - Surface per-signal barometer + multi-TF trend in the UI (next, if window left)
-- [ ] Add columns/badges for `signal.barometer.{m15..d1}` and `signal.trend.{m15..d1}` (null when the
-      signal came only from the oracle, i.e. pre-SignalR history).
+### #2 - Surface per-timeframe barometer + trend in the UI (DONE)
+- [x] Source barometer/trend from the **oracle** (they're stored in the Signal table: `Barometer15m..1d`
+      TEXT, `Trend15m..1d` INTEGER) - so they show for all signals incl. history, in Phase A too. This
+      made the SignalR DTO's copy redundant, so SignalrSource was simplified to liveness+trigger only.
+- [x] Two compact columns (off by default, in the column picker): `Barometer` (coloured numbers per
+      TF) and `Trend TF` (▲/▼ per TF), for 15m/30m/1h/4h/1d.
 
-## Review - #1 (2026-07-25)
+## Review - #1 + #2 (2026-07-25, branch `feat/phaseB-signalr`)
 
-**Implemented (branch `feat/phaseB-signalr`).**
-- `packages/shared/src/index.ts`: `Signal` gains optional `barometer?: SignalBarometer` and
-  `trend?: SignalTrend` (+ the two interfaces). Additive/backward-compatible.
+**#1 - SignalR hybrid source (bridge).**
 - `packages/bridge/src/signalr-source.ts` (NEW): `@microsoft/signalr` client to the engine hub.
-  One event (`ReceiveSignal`), PascalCase DTO -> snapshot (id + barometer/trend). Self-managed
-  reconnect loop that covers both initial-connect failure (hub not up) and later drops; degrades
-  silently when the hub is absent. `resolveSignalrUrl()` = env/opts opt-in, off by default.
+  Listens for the one `ReceiveSignal` event and uses only the id (a "signal fired" notification) -
+  the oracle has all the payload. Self-managed reconnect loop covering both initial-connect failure
+  (hub not up) and later drops; degrades silently when the hub is absent. `resolveSignalrUrl()` =
+  env/opts opt-in, off by default.
 - `packages/bridge/src/hybrid-source.ts` (NEW): `HybridDataSource implements ScannerDataSource`.
-  Oracle stays source of truth; on a SignalR event it stashes the barometer/trend snapshot and calls
-  `sqlite.pollNow()` for near-instant push. `info().connected` = live hub OR DB-exists fallback.
+  Oracle stays source of truth for reads; on a SignalR event it calls `sqlite.pollNow()` for
+  near-instant push. `info().connected` = live hub OR DB-exists fallback.
 - `packages/bridge/src/sqlite-source.ts`: added public `pollNow()` (no-op until polling seeded).
 - `packages/bridge/src/bootstrap.ts`: wraps the oracle in `HybridDataSource` when a SignalR URL is
   configured; otherwise unchanged Phase-A path. `index.ts` re-exports the new modules.
 
-**Verified.** `pnpm -r typecheck` clean (all 4 packages). Ran the bridge two ways:
+**#2 - barometer/trend, from the oracle + in the UI.**
+- Discovery: the oracle `Signal` table already stores `Barometer15m..1d` (TEXT) and `Trend15m..1d`
+  (INTEGER; C# `CryptoTrendIndicator` 1=up/2=down/0=Unknown). So they come from SQLite - covering
+  history + Phase A - which made the SignalR DTO's copy redundant; SignalrSource was trimmed to
+  liveness+trigger only (no payload mapping).
+- `packages/shared/src/index.ts`: `Signal.barometer?/trend?` + `SignalBarometer`, `SignalTrend`,
+  `TrendDir = 'up'|'down'`.
+- `packages/bridge/src/sqlite-source.ts`: `SIGNAL_SELECT` + mapper read the 10 columns
+  (`toBarometer`, `toTrend`, `trendDir`).
+- `packages/web/src/components/signal-columns.tsx`: two off-by-default columns - `Barometer`
+  (coloured number per TF) and `Trend TF` (▲/▼ per TF).
+
+**Verified.** `pnpm -r typecheck` clean (4 pkgs); `@csb/web` production build OK; ggshield clean.
+Runtime against the live default oracle:
 - `CSB_SIGNALR=1`: boots, logs `Phase B: SignalR live link enabled -> .../signalr/signals`, hub
   absent -> reconnect loop runs without crashing, `GET /api/info` -> **HTTP 200** (`connected:true`
-  via DB-exists fallback).
-- no flag: **no** Phase B line, `GET /api/info` -> **HTTP 200** - identical to Phase A.
-- ggshield secret scan: clean.
+  via DB-exists fallback). No flag: no Phase B line, `/api/info` -> **HTTP 200** (identical to Phase A).
+- `GET /api/signals` now returns e.g. `barometer:{m15:-0.08..d1:-1.00}`, `trend:{m15:"down"..d1:"up"}`.
 
-**Not yet done (deferred to Inge / follow-ups):** the real-hub end-to-end test (needs the C# engine
-running with `SignalREnabled=true`); a desktop UI toggle (env opt-in only for now); asking Marius for
-backfill-on-connect + a periodic barometer/price broadcast (that is task #3).
+**Not yet done (Inge / follow-ups):** real-hub end-to-end test (needs the C# engine with
+`SignalREnabled=true` -> confirm instant push + "online" only while the hub is connected); a desktop
+UI toggle (env opt-in only for now); asking Marius for backfill-on-connect + a periodic
+barometer/price broadcast (task #3).

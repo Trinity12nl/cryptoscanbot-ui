@@ -90,21 +90,23 @@ export interface Signal {
   eventText: string
   /** Signal open time, epoch ms UTC. */
   openDateMs: number | null
-  /** Per-timeframe barometer snapshot AT SIGNAL TIME. Only present when the signal arrived via the
-   * engine's SignalR hub (Phase B) - the SQLite oracle does not store it, so it's null otherwise. */
+  /** Per-timeframe barometer reading at signal time (C# Signal.Barometer15m..1d). Each may be null. */
   barometer?: SignalBarometer | null
-  /** Per-timeframe market-trend label at signal time. SignalR-only, same as `barometer`. */
+  /** Per-timeframe market-trend at signal time (C# Signal.Trend15m..1d: up/down, Unknown -> null). */
   trend?: SignalTrend | null
 }
 
-/** Barometer readings per timeframe at signal time (engine SignalR DTO; not in the oracle). */
+/** Simple market direction (C# CryptoTrendIndicator: Bullish -> up, Bearish -> down, Unknown -> null). */
+export type TrendDir = 'up' | 'down'
+
+/** Barometer readings per timeframe at signal time (from the oracle Signal table). */
 export interface SignalBarometer {
   m15: number | null; m30: number | null; h1: number | null; h4: number | null; d1: number | null
 }
 
-/** Market-trend label per timeframe at signal time (engine SignalR DTO; not in the oracle). */
+/** Market-trend direction per timeframe at signal time (from the oracle Signal table). */
 export interface SignalTrend {
-  m15: string | null; m30: string | null; h1: string | null; h4: string | null; d1: string | null
+  m15: TrendDir | null; m30: TrendDir | null; h1: TrendDir | null; h4: TrendDir | null; d1: TrendDir | null
 }
 
 /** true when the two market-trend readings disagree in sign and both are meaningful.

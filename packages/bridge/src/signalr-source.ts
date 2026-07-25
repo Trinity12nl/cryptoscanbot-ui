@@ -1,5 +1,4 @@
 import * as signalR from '@microsoft/signalr'
-import type { SignalBarometer, SignalTrend } from '@csb/shared'
 
 /**
  * Phase B live link: a SignalR client that connects to the C# engine's hub
@@ -7,40 +6,23 @@ import type { SignalBarometer, SignalTrend } from '@csb/shared'
  * one event it broadcasts: `ReceiveSignal(CryptoSignalDto)`, fired the moment the engine creates a
  * signal.
  *
- * We use this for two things (see HybridDataSource):
+ * We use it for exactly two things (see HybridDataSource):
  *  1. REAL engine liveness - a live hub connection means the engine is running right now, which the
  *     Phase-A "the DB file exists" check could only guess at.
  *  2. A near-instant push trigger - on a ReceiveSignal we poke the SQLite source to poll immediately
  *     instead of waiting up to 1.5s for its next tick.
  *
- * The DTO also carries per-signal barometer + multi-timeframe trend snapshots that the SQLite oracle
- * does NOT store; we surface those as a snapshot so they can be merged onto the signal later.
+ * We deliberately ignore the DTO's payload (barometer/trend/etc): the SQLite oracle stores all of it
+ * and is the single source of truth, so we only need the "a signal just fired" notification.
  *
  * Robustness: the hub is off by default and only present when the engine has SignalREnabled=true, so
  * this must degrade gracefully. We manage our own reconnect loop; when the hub is absent we simply
  * stay disconnected and liveness falls back to the DB-exists check - nothing else breaks.
  */
 
-/** The wire shape the engine sends (PascalCase - the hub sets PropertyNamingPolicy = null). */
+/** The wire shape the engine sends (PascalCase). We only read the Id - the oracle has the rest. */
 interface CryptoSignalDto {
   Id: number
-  Barometer15m: number | null
-  Barometer30m: number | null
-  Barometer1h: number | null
-  Barometer4h: number | null
-  Barometer1d: number | null
-  Trend15m: string | null
-  Trend30m: string | null
-  Trend1h: string | null
-  Trend4h: string | null
-  Trend1d: string | null
-}
-
-/** What we hand on from a ReceiveSignal event: the id plus the oracle-absent barometer/trend. */
-export interface SignalrSignalSnapshot {
-  id: number
-  barometer: SignalBarometer
-  trend: SignalTrend
 }
 
 const DEFAULT_SIGNALR_PORT = 5200
@@ -59,33 +41,12 @@ export function resolveSignalrUrl(opts: { signalrUrl?: string } = {}): string | 
   return null
 }
 
-const num = (v: unknown): number | null => {
-  if (v == null) return null
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : null
-}
-const str = (v: unknown): string | null => (v == null || v === '' ? null : String(v))
-
-function toSnapshot(d: CryptoSignalDto): SignalrSignalSnapshot {
-  return {
-    id: d.Id,
-    barometer: {
-      m15: num(d.Barometer15m), m30: num(d.Barometer30m), h1: num(d.Barometer1h),
-      h4: num(d.Barometer4h), d1: num(d.Barometer1d),
-    },
-    trend: {
-      m15: str(d.Trend15m), m30: str(d.Trend30m), h1: str(d.Trend1h),
-      h4: str(d.Trend4h), d1: str(d.Trend1d),
-    },
-  }
-}
-
 export class SignalrSource {
   private conn: signalR.HubConnection | null = null
   private connected = false
   private stopped = false
   private retryTimer: NodeJS.Timeout | null = null
-  private readonly signalListeners = new Set<(s: SignalrSignalSnapshot) => void>()
+  private readonly signalListeners = new Set<(id: number) => void>()
   private readonly stateListeners = new Set<(connected: boolean) => void>()
 
   constructor(private readonly url: string) {}
@@ -104,8 +65,7 @@ export class SignalrSource {
     this.conn = conn
 
     conn.on('ReceiveSignal', (dto: CryptoSignalDto) => {
-      const snap = toSnapshot(dto)
-      for (const cb of this.signalListeners) cb(snap)
+      for (const cb of this.signalListeners) cb(dto.Id)
     })
     // We drive reconnection ourselves (below) rather than withAutomaticReconnect, so the same loop
     // covers both an initial connect failure (hub not up yet) and a later drop.
@@ -144,8 +104,8 @@ export class SignalrSource {
     for (const cb of this.stateListeners) cb(v)
   }
 
-  /** Fires on every ReceiveSignal broadcast. Returns an unsubscribe fn. */
-  onSignal(cb: (s: SignalrSignalSnapshot) => void): () => void {
+  /** Fires with the signal id on every ReceiveSignal broadcast. Returns an unsubscribe fn. */
+  onSignal(cb: (id: number) => void): () => void {
     this.signalListeners.add(cb)
     return () => { this.signalListeners.delete(cb) }
   }
