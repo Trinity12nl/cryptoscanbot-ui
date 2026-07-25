@@ -90,6 +90,23 @@ export interface Signal {
   eventText: string
   /** Signal open time, epoch ms UTC. */
   openDateMs: number | null
+  /** Per-timeframe barometer reading at signal time (C# Signal.Barometer15m..1d). Each may be null. */
+  barometer?: SignalBarometer | null
+  /** Per-timeframe market-trend at signal time (C# Signal.Trend15m..1d: up/down, Unknown -> null). */
+  trend?: SignalTrend | null
+}
+
+/** Simple market direction (C# CryptoTrendIndicator: Bullish -> up, Bearish -> down, Unknown -> null). */
+export type TrendDir = 'up' | 'down'
+
+/** Barometer readings per timeframe at signal time (from the oracle Signal table). */
+export interface SignalBarometer {
+  m15: number | null; m30: number | null; h1: number | null; h4: number | null; d1: number | null
+}
+
+/** Market-trend direction per timeframe at signal time (from the oracle Signal table). */
+export interface SignalTrend {
+  m15: TrendDir | null; m30: TrendDir | null; h1: TrendDir | null; h4: TrendDir | null; d1: TrendDir | null
 }
 
 /** true when the two market-trend readings disagree in sign and both are meaningful.
@@ -116,8 +133,12 @@ export interface EngineInfo {
   exchange: string | null
   /** Path to the oracle DB the bridge is reading. */
   dbPath: string
-  /** true when the DB file exists and is readable. */
+  /** true when the engine is LIVE: a running SignalR hub connection (Phase B), or - with no hub -
+   * the oracle DB file exists (Phase A fallback). Drives the online/offline dot. */
   connected: boolean
+  /** true when the oracle DB file exists, independent of engine liveness. Drives the "no scanner
+   * database found" banner, so quitting the engine shows offline but does NOT claim the DB is gone. */
+  dbPresent: boolean
   /** Last time the bridge saw the DB change, epoch ms. */
   lastChangeMs: number | null
 }

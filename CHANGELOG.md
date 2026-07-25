@@ -9,6 +9,21 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.7.0 - 2026-07-25
+
+### FIX
+- **A transient error no longer blanks the whole screen.** The initial load fetched info + signals + prices + settings as one all-or-nothing `Promise.all`, so a single hiccup (e.g. a query 500'ing while the engine's startup sync holds the DB write lock) wiped everything until a manual reload. Each now loads independently, and the signal history retries a few times before giving up - so a blip on one call can't erase the rest (and info/prices/settings also stream in over the WebSocket).
+- **Offline no longer claims "no database".** Liveness (`connected`) and DB-presence (`dbPresent`) are now separate `EngineInfo` fields: quitting the engine correctly flips the dot to offline while the "No scanner database found" banner stays hidden (the DB file is still there). Previously the banner keyed off `connected`, so an offline engine looked like a missing DB.
+- **Hub is authoritative for liveness once connected.** After the SignalR hub has connected at least once, the live connection drives online/offline (so killing the engine goes offline even though its `.db` lingers); before any connect, it falls back to the DB-exists check (unchanged Phase A behaviour).
+
+### NEW
+- **Phase B live link (opt-in).** The bridge can now connect to the C# engine's SignalR hub (Marius' avalonia `SignalRService`, default `http://localhost:5200/signalr/signals`) for **real engine liveness** - "online" now means a live hub connection, not just "the DB file exists" - and **near-instant signal push** (a new signal pokes the oracle to read immediately instead of waiting for the ~1.5s poll). Off by default; enable with `CSB_SIGNALR=1` (or `CSB_SIGNALR_URL=...`) on the bridge **and** `General.SignalREnabled = true` in the engine. Without it, behaviour is exactly as before.
+- **Per-timeframe barometer + trend columns.** Two new (optional, off by default) signal columns show the market **barometer** and **trend direction** at signal time across 15m/30m/1h/4h/1d - compact coloured readouts (barometer numbers; trend ▲/▼). Enable them in the column picker.
+
+### TECH
+- **SignalR hybrid data source.** New `SignalrSource` (self-managed reconnect, graceful when the hub is absent) + `HybridDataSource` compose behind the existing `ScannerDataSource` seam: the SQLite oracle stays the source of truth for signal data/history/symbols, SignalR adds liveness + a push trigger, so the UI is unchanged. `SqliteDataSource` gains `pollNow()`.
+- **Barometer/trend from the oracle.** The oracle `Signal` table already stores `Barometer15m..1d` and `Trend15m..1d`; the bridge now reads them into the `Signal` DTO (`barometer`/`trend`, trend normalised to up/down, Unknown -> null), so they show for all signals including history - not just live ones.
+
 ## v0.6.2 - 2026-07-25
 
 ### FIX

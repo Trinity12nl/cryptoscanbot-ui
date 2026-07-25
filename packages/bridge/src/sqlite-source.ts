@@ -3,7 +3,7 @@ import { existsSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type {
-  EngineInfo, ScannerDataSource, Signal, SymbolRow, TradeSide,
+  EngineInfo, ScannerDataSource, Signal, SignalBarometer, SignalTrend, TradeSide, TrendDir, SymbolRow,
 } from '@csb/shared'
 import { strategyName } from '@csb/shared'
 
@@ -65,6 +65,29 @@ interface SignalJoinRow {
   LastXDaysEffective: string | null; Rsi: string | null; StochOscillator: string | null
   StochSignal: string | null; MacdHistogram: string | null; BarcodePercentage: string | null
   EventText: string | null; OpenDate: string | null
+  Barometer15m: string | null; Barometer30m: string | null; Barometer1h: string | null
+  Barometer4h: string | null; Barometer1d: string | null
+  Trend15m: number | null; Trend30m: number | null; Trend1h: number | null
+  Trend4h: number | null; Trend1d: number | null
+}
+
+/** C# CryptoTrendIndicator: 1 = Bullish (up), 2 = Bearish (down), 0/Unknown/null -> null. */
+function trendDir(v: number | null): TrendDir | null {
+  return v === 1 ? 'up' : v === 2 ? 'down' : null
+}
+
+function toBarometer(r: SignalJoinRow): SignalBarometer {
+  return {
+    m15: num(r.Barometer15m), m30: num(r.Barometer30m), h1: num(r.Barometer1h),
+    h4: num(r.Barometer4h), d1: num(r.Barometer1d),
+  }
+}
+
+function toTrend(r: SignalJoinRow): SignalTrend {
+  return {
+    m15: trendDir(r.Trend15m), m30: trendDir(r.Trend30m), h1: trendDir(r.Trend1h),
+    h4: trendDir(r.Trend4h), d1: trendDir(r.Trend1d),
+  }
 }
 
 function toSignal(r: SignalJoinRow): Signal {
@@ -91,6 +114,8 @@ function toSignal(r: SignalJoinRow): Signal {
     barcode: num(r.BarcodePercentage),
     eventText: r.EventText ?? '',
     openDateMs: dateMs(r.OpenDate),
+    barometer: toBarometer(r),
+    trend: toTrend(r),
   }
 }
 
@@ -100,7 +125,9 @@ const SIGNAL_SELECT = `
          s.TrendPercentagePrimary, s.TrendPercentageSecondary, s.BollingerBandsPercentage,
          s.Last24HoursChange, s.LastXDaysEffective, s.Rsi, s.StochOscillator, s.StochSignal,
          s.MacdHistogram, s.BarcodePercentage,
-         s.EventText, s.OpenDate
+         s.EventText, s.OpenDate,
+         s.Barometer15m, s.Barometer30m, s.Barometer1h, s.Barometer4h, s.Barometer1d,
+         s.Trend15m, s.Trend30m, s.Trend1h, s.Trend4h, s.Trend1d
   FROM Signal s
   LEFT JOIN Symbol sym ON sym.Id = s.SymbolId
   LEFT JOIN Exchange ex ON ex.Id = s.ExchangeId
@@ -132,7 +159,10 @@ export class SqliteDataSource implements ScannerDataSource {
   }
 
   async info(): Promise<EngineInfo> {
-    const connected = existsSync(this.dbPath)
+    // Standalone (Phase A) liveness == the DB file exists; the Hybrid source overrides `connected`
+    // with the live hub state but keeps `dbPresent` as this file-existence check.
+    const dbPresent = existsSync(this.dbPath)
+    const connected = dbPresent
     let exchange: string | null = null
     const db = this.open()
     if (db) {
@@ -143,7 +173,7 @@ export class SqliteDataSource implements ScannerDataSource {
         exchange = row?.Name ?? null
       } catch { /* schema may differ; leave null */ }
     }
-    return { exchange, dbPath: this.dbPath, connected, lastChangeMs: this.lastChangeMs }
+    return { exchange, dbPath: this.dbPath, connected, dbPresent, lastChangeMs: this.lastChangeMs }
   }
 
   async getSignals(opts: { limit?: number; sinceMs?: number } = {}): Promise<Signal[]> {
@@ -189,6 +219,13 @@ export class SqliteDataSource implements ScannerDataSource {
     this.listeners.add(cb)
     this.ensurePolling()
     return () => { this.listeners.delete(cb) }
+  }
+
+  /** Force an immediate poll for newly-inserted signals instead of waiting for the next interval
+   * tick. Used by the SignalR trigger (Phase B) for near-instant push. No-op until polling has been
+   * started by subscribeSignals(), so we never flood by emitting the whole backlog. */
+  pollNow(): void {
+    if (this.pollTimer) this.poll()
   }
 
   /** Seed lastId and poll for new signals; push deltas to subscribers. */

@@ -1,9 +1,51 @@
 import { createColumnHelper, type RowData, type VisibilityState } from '@tanstack/react-table'
 import { Zap } from 'lucide-react'
-import { INTERVAL_SEC, isTrendDivergent, signalChangePct, type Signal } from '@csb/shared'
+import {
+  INTERVAL_SEC, isTrendDivergent, signalChangePct,
+  type Signal, type SignalBarometer,
+} from '@csb/shared'
 import { usePrices } from '../context/PricesContext'
 import { SIDE_BADGE_CLASS, pctClass, trendClass } from '../lib/enums'
 import { formatCandleRange, formatCompact, formatMacd, formatNum, formatPrice } from '../lib/format'
+
+// The five timeframes the engine snapshots per signal (barometer + trend), in ascending order.
+const TF_KEYS: ReadonlyArray<readonly [keyof SignalBarometer, string]> = [
+  ['m15', '15m'], ['m30', '30m'], ['h1', '1h'], ['h4', '4h'], ['d1', '1d'],
+]
+
+// Per-timeframe barometer readings as a compact inline row (one small coloured number per TF).
+function BarometerCell({ signal }: { signal: Signal }) {
+  const b = signal.barometer
+  if (!b) return <span className="text-zinc-400 dark:text-zinc-500">-</span>
+  return (
+    <span className="inline-flex gap-1.5 tabular-nums text-xs">
+      {TF_KEYS.map(([k, label]) => {
+        const v = b[k]
+        return (
+          <span key={k} title={label} className={v == null ? 'text-zinc-300 dark:text-zinc-600' : pctClass(v)}>
+            {v == null ? '·' : formatNum(v, 2)}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+// Per-timeframe market-trend direction as compact arrows (up green / down red / unknown dot).
+function TrendTfCell({ signal }: { signal: Signal }) {
+  const t = signal.trend
+  if (!t) return <span className="text-zinc-400 dark:text-zinc-500">-</span>
+  return (
+    <span className="inline-flex gap-1 text-xs">
+      {TF_KEYS.map(([k, label]) => {
+        const v = t[k]
+        const cls = v === 'up' ? 'text-emerald-600 dark:text-emerald-400'
+          : v === 'down' ? 'text-red-600 dark:text-red-400' : 'text-zinc-300 dark:text-zinc-600'
+        return <span key={k} title={label} className={cls}>{v === 'up' ? '▲' : v === 'down' ? '▼' : '·'}</span>
+      })}
+    </span>
+  )
+}
 
 // Colocate a plain-text label on each column so the column picker can render a
 // checkbox list without duplicating the (sometimes JSX) header definitions.
@@ -97,6 +139,16 @@ export function buildSignalColumns() {
     col.accessor('stochSig', { id: 'stochSignal', meta: { label: 'Stoch Signal' }, header: 'Stoch Sig', cell: (i) => formatNum(i.getValue(), 1) }),
     col.accessor('macdHistogram', { id: 'macdHist', meta: { label: 'MACD Hist' }, header: 'MACD Hist', cell: (i) => formatMacd(i.getValue()) }),
     col.accessor('barcode', { id: 'barcode', meta: { label: 'Barcode' }, header: () => <span title="Barcode / flatness metric">Barcode</span>, cell: (i) => formatNum(i.getValue()) }),
+    col.display({
+      id: 'baro', meta: { label: 'Barometer' },
+      header: () => <span title="Market barometer per timeframe at signal time (15m 30m 1h 4h 1d)">Barometer</span>,
+      cell: (ctx) => <BarometerCell signal={ctx.row.original} />,
+    }),
+    col.display({
+      id: 'trendTf', meta: { label: 'Trend TF' },
+      header: () => <span title="Market trend direction per timeframe at signal time (15m 30m 1h 4h 1d)">Trend TF</span>,
+      cell: (ctx) => <TrendTfCell signal={ctx.row.original} />,
+    }),
   ]
 }
 
@@ -111,4 +163,6 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = {
   stochSignal: false,
   macdHist: false,
   barcode: false,
+  baro: false,
+  trendTf: false,
 }

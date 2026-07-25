@@ -1,6 +1,6 @@
 {
   "name": "@csb/bridge",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@csb/shared": "workspace:*",
+    "@microsoft/signalr": "^8.0.7",
     "better-sqlite3": "^11.8.1",
     "ccxt": "^4.4.50",
     "ws": "^8.18.0"
