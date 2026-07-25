@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Settings, FolderOpen, RotateCcw, Loader2 } from 'lucide-react'
+import type { EngineInfo } from '@csb/shared'
 import { getDesktop, type DataFolderState } from '../lib/desktop'
+import { SignalRToggle } from './SignalRToggle'
 
-// Gear button + modal to view/change where the bridge reads the engine's DB. Lets a user who started
-// the engine with `-f "datafolder"` point the app at that folder. Desktop-only controls; in the
-// browser it shows the current path and the dev fallback (CSB_DATA_DIR).
-export function DataFolderSettings({ dbPath }: { dbPath: string | null }) {
+// Gear button + Settings modal: view/change where the bridge reads the engine's DB, and toggle the
+// SignalR live link. Lets a user who started the engine with `-f "datafolder"` point the app at that
+// folder. Desktop-only controls; in the browser it shows the current path and the dev fallbacks.
+export function DataFolderSettings({ info }: { info: EngineInfo | null }) {
+  const dbPath = info?.dbPath ?? null
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<DataFolderState | null>(null)
   // Changing the folder restarts the bridge and reloads the page (~1-2s); show a pending state so the
@@ -91,6 +94,8 @@ export function DataFolderSettings({ dbPath }: { dbPath: string | null }) {
                 {' on the bridge.'}
               </p>
             )}
+
+            <SignalRToggle info={info} />
 
             <div className="mt-4 flex justify-end">
               <button
