@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Settings, FolderOpen, RotateCcw } from 'lucide-react'
+import { Settings, FolderOpen, RotateCcw, Loader2 } from 'lucide-react'
 import { getDesktop, type DataFolderState } from '../lib/desktop'
 
 // Gear button + modal to view/change where the bridge reads the engine's DB. Lets a user who started
@@ -8,6 +8,9 @@ import { getDesktop, type DataFolderState } from '../lib/desktop'
 export function DataFolderSettings({ dbPath }: { dbPath: string | null }) {
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<DataFolderState | null>(null)
+  // Changing the folder restarts the bridge and reloads the page (~1-2s); show a pending state so the
+  // action has visible feedback instead of looking dead until the reload happens.
+  const [busy, setBusy] = useState(false)
   const desktop = getDesktop()
 
   useEffect(() => {
@@ -16,9 +19,16 @@ export function DataFolderSettings({ dbPath }: { dbPath: string | null }) {
   }, [open, desktop])
 
   // On success the main process persists, restarts the bridge and reloads the page, so we don't need
-  // to update local state here.
-  const pick = () => { void desktop?.pickDataFolder().catch(() => {}) }
-  const reset = () => { void desktop?.clearDataFolder().catch(() => {}) }
+  // to update local state here - we only clear `busy` if the action didn't proceed (dialog cancelled
+  // or an error), since a successful change reloads the whole page.
+  const pick = () => {
+    setBusy(true)
+    desktop?.pickDataFolder().then((r) => { if (!r) setBusy(false) }).catch(() => setBusy(false))
+  }
+  const reset = () => {
+    setBusy(true)
+    desktop?.clearDataFolder().catch(() => setBusy(false))
+  }
 
   const shown = state?.dbPath ?? dbPath ?? '-'
 
@@ -57,14 +67,18 @@ export function DataFolderSettings({ dbPath }: { dbPath: string | null }) {
               <div className="mt-4 flex items-center gap-2">
                 <button
                   onClick={pick}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700 disabled:cursor-wait disabled:opacity-70 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                 >
-                  <FolderOpen size={13} /> Choose folder…
+                  {busy
+                    ? <><Loader2 size={13} className="animate-spin" /> Switching…</>
+                    : <><FolderOpen size={13} /> Choose folder…</>}
                 </button>
                 {state?.dataDir && (
                   <button
                     onClick={reset}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    disabled={busy}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 disabled:cursor-wait disabled:opacity-70 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                   >
                     <RotateCcw size={13} /> Reset to default
                   </button>
