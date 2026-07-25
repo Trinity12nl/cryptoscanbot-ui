@@ -144,6 +144,14 @@ export interface EngineInfo {
    * folder. The banner offers it as a one-click fix; null when nothing suitable is nearby. The bridge
    * only ever SUGGESTS this - it never silently re-points. */
   suggestedDataDir?: string | null
+  /** true when the bridge is configured to use the engine's SignalR hub (Phase B live link). This is
+   * the OUR-side switch; it does not imply the hub is actually reachable. */
+  signalrEnabled?: boolean
+  /** true when the SignalR hub connection is live right now (only meaningful when signalrEnabled). */
+  signalrConnected?: boolean
+  /** The engine's OWN `General.SignalREnabled` read from its settings JSON, or null if unknown/unread.
+   * Lets the UI say whether the scanner side is on (the other half of the live link). */
+  engineSignalrEnabled?: boolean | null
   /** Last time the bridge saw the DB change, epoch ms. */
   lastChangeMs: number | null
 }
@@ -159,6 +167,10 @@ export interface ScannerDataSource {
   getSymbols(opts?: { exchange?: string }): Promise<SymbolRow[]>
   /** Fires cb whenever new signals appear. Returns an unsubscribe fn. */
   subscribeSignals(cb: (signals: Signal[]) => void): () => void
+  /** Optional: fires when engine INFO (not signals) changes out-of-band - e.g. the SignalR hub
+   * connects/disconnects - so the server can push a fresh EngineInfo immediately instead of waiting
+   * for its periodic poll. Sources without live liveness (Phase A) can omit it. Returns unsubscribe. */
+  onInfoChange?(cb: () => void): () => void
   close(): void
 }
 

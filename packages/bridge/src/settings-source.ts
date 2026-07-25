@@ -23,7 +23,10 @@ export function resolveSettingsPath(opts: DataLocation = {}): string {
 
 interface SideConfig { Strategy?: string[]; Interval?: string[] }
 interface RawSettings {
-  General?: { ActivateExchangeName?: string; RemoveSignalAfterxCandles?: number }
+  General?: {
+    ActivateExchangeName?: string; RemoveSignalAfterxCandles?: number
+    SignalREnabled?: boolean; SignalRPort?: number
+  }
   Signal?: { Long?: SideConfig; Short?: SideConfig }
   QuoteCoins?: Record<string, { MinimalVolume?: number; FetchCandles?: boolean }>
 }
@@ -96,6 +99,18 @@ export class SettingsSource {
       // eslint-disable-next-line no-console
       console.warn(`[settings] read failed: ${err instanceof Error ? err.message : 'error'}`)
       return this.cached
+    }
+  }
+
+  /** The engine's OWN SignalR config, read straight from its settings JSON (the half of the live link
+   * we don't control). enabled=null when the file is missing/unreadable. Read-only. */
+  getEngineSignalr(): { enabled: boolean | null; port: number | null } {
+    try {
+      if (!existsSync(this.path)) return { enabled: null, port: null }
+      const raw = JSON.parse(readFileSync(this.path, 'utf8')) as RawSettings
+      return { enabled: raw.General?.SignalREnabled ?? null, port: raw.General?.SignalRPort ?? null }
+    } catch {
+      return { enabled: null, port: null }
     }
   }
 

@@ -47,7 +47,11 @@ export class HybridDataSource implements ScannerDataSource {
     // offline, so we fall back to the oracle's DB-exists check = exactly the Phase-A behaviour.
     const connected = this.signalr.hasEverConnected() ? this.signalr.isConnected() : base.connected
     const lastChangeMs = Math.max(base.lastChangeMs ?? 0, this.lastSignalrMs ?? 0) || null
-    return { ...base, connected, lastChangeMs }
+    // The live link is enabled (this source only exists when it is); report whether it's connected now.
+    return {
+      ...base, connected, lastChangeMs,
+      signalrEnabled: true, signalrConnected: this.signalr.isConnected(),
+    }
   }
 
   getSignals(opts?: { limit?: number; sinceMs?: number }): Promise<Signal[]> {
@@ -60,6 +64,12 @@ export class HybridDataSource implements ScannerDataSource {
 
   subscribeSignals(cb: (signals: Signal[]) => void): () => void {
     return this.sqlite.subscribeSignals(cb)
+  }
+
+  /** Push an info refresh the instant the hub connects or drops, so liveness (and the header's
+   * Live/Polling mode) updates immediately instead of waiting for the server's periodic poll. */
+  onInfoChange(cb: () => void): () => void {
+    return this.signalr.onConnectionChange(() => cb())
   }
 
   close(): void {
