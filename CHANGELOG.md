@@ -9,16 +9,28 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.0 - 2026-07-25
+
+### NEW
+- **Version badge in the header.** The app version (e.g. `v0.8.0`) now shows small and muted directly under "CryptoScanBot-ui" in the top-left, so it's always obvious which build you're on when reporting an issue. Baked in at build time, so it's correct in both dev and the packaged app.
+- **"Did you mean this folder?" one-click fix.** When the app finds no database at the folder it's pointed at, it now looks for a `CryptoScanBot.db` in a nearby folder (an immediate subfolder or the parent) and, if it finds one, the amber banner offers a one-click **Use `<folder>`** button to switch to it. This catches the common trap where you pick one level off - the engine writes the DB in e.g. `…\Futures` but also creates a same-looking `Binance Futures` subfolder right next to it, so it's easy to select the child (or the grandparent). The folder picker itself is unchanged: it still stores exactly the folder you choose - detection only ever *suggests*, it never silently re-points.
+
+### IMPROVED
+- **Visible feedback while switching data folder.** Changing the data folder restarts the bridge and reloads the page (~1-2s); previously that happened with no on-screen response, so the action looked dead until it suddenly snapped to the new folder. The banner's **Use `<folder>`** button and the Settings **Choose folder… / Reset** buttons now immediately show a **"Switching…"** spinner and go disabled, so you can see it's working.
+
+### TECH
+- **Nearby-DB lookup + suggestion plumbing.** New bridge helper `findOracleDbDir(dir)` (pure lookup: checks the folder -> its immediate subfolders -> its parent for `CryptoScanBot.db`). `EngineInfo` gains `suggestedDataDir` (populated only when the expected DB is absent). Desktop gains a `csb:setDataFolder` IPC + `window.csb.setDataFolder(dir)` so the banner button can re-point the in-process bridge directly (no dialog). Version is exposed to the web via a vite `define` (`__APP_VERSION__`) read from `web/package.json`.
+
 ## v0.7.0 - 2026-07-25
+
+### NEW
+- **Phase B live link (opt-in).** The bridge can now connect to the C# engine's SignalR hub (Marius' avalonia `SignalRService`, default `http://localhost:5200/signalr/signals`) for **real engine liveness** - "online" now means a live hub connection, not just "the DB file exists" - and **near-instant signal push** (a new signal pokes the oracle to read immediately instead of waiting for the ~1.5s poll). Off by default; enable with `CSB_SIGNALR=1` (or `CSB_SIGNALR_URL=...`) on the bridge **and** `General.SignalREnabled = true` in the engine. Without it, behaviour is exactly as before.
+- **Per-timeframe barometer + trend columns.** Two new (optional, off by default) signal columns show the market **barometer** and **trend direction** at signal time across 15m/30m/1h/4h/1d - compact coloured readouts (barometer numbers; trend ▲/▼). Enable them in the column picker.
 
 ### FIX
 - **A transient error no longer blanks the whole screen.** The initial load fetched info + signals + prices + settings as one all-or-nothing `Promise.all`, so a single hiccup (e.g. a query 500'ing while the engine's startup sync holds the DB write lock) wiped everything until a manual reload. Each now loads independently, and the signal history retries a few times before giving up - so a blip on one call can't erase the rest (and info/prices/settings also stream in over the WebSocket).
 - **Offline no longer claims "no database".** Liveness (`connected`) and DB-presence (`dbPresent`) are now separate `EngineInfo` fields: quitting the engine correctly flips the dot to offline while the "No scanner database found" banner stays hidden (the DB file is still there). Previously the banner keyed off `connected`, so an offline engine looked like a missing DB.
 - **Hub is authoritative for liveness once connected.** After the SignalR hub has connected at least once, the live connection drives online/offline (so killing the engine goes offline even though its `.db` lingers); before any connect, it falls back to the DB-exists check (unchanged Phase A behaviour).
-
-### NEW
-- **Phase B live link (opt-in).** The bridge can now connect to the C# engine's SignalR hub (Marius' avalonia `SignalRService`, default `http://localhost:5200/signalr/signals`) for **real engine liveness** - "online" now means a live hub connection, not just "the DB file exists" - and **near-instant signal push** (a new signal pokes the oracle to read immediately instead of waiting for the ~1.5s poll). Off by default; enable with `CSB_SIGNALR=1` (or `CSB_SIGNALR_URL=...`) on the bridge **and** `General.SignalREnabled = true` in the engine. Without it, behaviour is exactly as before.
-- **Per-timeframe barometer + trend columns.** Two new (optional, off by default) signal columns show the market **barometer** and **trend direction** at signal time across 15m/30m/1h/4h/1d - compact coloured readouts (barometer numbers; trend ▲/▼). Enable them in the column picker.
 
 ### TECH
 - **SignalR hybrid data source.** New `SignalrSource` (self-managed reconnect, graceful when the hub is absent) + `HybridDataSource` compose behind the existing `ScannerDataSource` seam: the SQLite oracle stays the source of truth for signal data/history/symbols, SignalR adds liveness + a push trigger, so the UI is unchanged. `SqliteDataSource` gains `pollNow()`.
@@ -69,12 +81,12 @@ Uses [semantic versioning](https://semver.org/).
 ### NEW
 - **Exchange switch reflects live.** When the engine switches active exchange, the header updates on its own (within ~5s) instead of only after a manual page refresh - the bridge now polls engine info and pushes it on change.
 
+### IMPROVED
+- **Symbol list self-corrects during a backfill.** Right after an exchange switch the engine fills in volumes gradually; the list now refreshes every 60s so the filtered count climbs to the real value without a manual reload.
+
 ### FIX
 - **Symbol list matches the active exchange.** The list showed a cross-exchange union (a symbol exists once per exchange), so it could show the wrong exchange's symbols. It now filters to the active exchange, joining on the real `ExchangeId` (the `Symbol.ExchangeName` column is a C# quirk that stores the symbol's own name), and reloads when you switch exchange.
 - **Correct active exchange.** The header took the most recently symbol-refreshed exchange (`LastTimeFetched`), which lags a switch by up to an hour; it now reads the active exchange from the engine's settings (`ActivateExchangeName`).
-
-### IMPROVED
-- **Symbol list self-corrects during a backfill.** Right after an exchange switch the engine fills in volumes gradually; the list now refreshes every 60s so the filtered count climbs to the real value without a manual reload.
 
 ## v0.3.2 - 2026-07-24
 
