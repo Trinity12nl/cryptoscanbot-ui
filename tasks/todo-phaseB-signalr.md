@@ -158,3 +158,30 @@ kill-the-engine test; everything else reviewed clean.
 - Note for the real-hub test: `@microsoft/signalr` in Node negotiates then uses WebSocket; import +
   build + connect-attempt all run fine headless, but the *successful* WS transport is only provable
   against the running hub - watch for a `[signalr] connected to ...` log line during the test.
+
+## Real-hub test session (2026-07-25, with Inge)
+
+The engine hub is **off by default** (`SettingsGeneral.SignalREnabled=false`); flipped it to `true` in
+`~/Library/Application Support/CryptoScanBot/CryptoScanBot-settings.json` (port 5200) while the scanner
+was quit (it rewrites the file on exit). Inge launches the scanner herself - launching it from the
+agent shell fails (macOS TCC: `SQLite disk I/O error` on the rw startup, leaves a hot `-journal`;
+recovered cleanly on her next normal launch, no data loss). **WS transport confirmed working**: bridge
+logged `[signalr] connected to http://localhost:5200/signalr/signals`, live signals + barometer/trend
+flowed. Dev setup: bridge `CSB_BRIDGE_PORT=4320 CSB_SIGNALR=1`, web vite on 5319 with
+`CSB_BRIDGE_URL=http://127.0.0.1:4320` (note: her web proxies to **4320**, not the 4319 default).
+
+Two more bugs found + fixed live (commit `1cc14ba`):
+- **Offline mis-reported as "No scanner database found".** The web banner keyed off `!info.connected`,
+  but Phase B made `connected` mean "hub live" - so quitting the engine (offline) falsely claimed the
+  DB was gone. Split into `EngineInfo.dbPresent` (file-exists, drives the banner) vs `connected`
+  (liveness, drives the dot). SqliteDataSource sets both; HybridDataSource spreads `dbPresent` through.
+- Fragile initial load (noted, NOT fixed): the web's `Promise.all([info,signals,prices,settings])` is
+  all-or-nothing, so one transient 500 (e.g. during the engine's startup-sync write burst) blanks the
+  whole history until reload. Worth loading history independently later - out of Phase B scope.
+
+**Design decision (Inge, "leave it"):** when SignalR is enabled but the hub has never connected, keep
+the DB-exists fallback (shows online) rather than forcing offline. Trade-off accepted: a bridge
+(re)started while the engine is down shows green until the first hub connect.
+
+Still pending: Inge's final green/red liveness confirmation (start scanner -> green, quit -> red + no
+banner), then merge/tag; and **#3** (ask Marius for backfill-on-connect + periodic barometer/price).

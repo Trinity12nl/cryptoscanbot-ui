@@ -11,6 +11,10 @@ Uses [semantic versioning](https://semver.org/).
 
 ## Unreleased
 
+### FIX
+- **Offline no longer claims "no database".** Liveness (`connected`) and DB-presence (`dbPresent`) are now separate `EngineInfo` fields: quitting the engine correctly flips the dot to offline while the "No scanner database found" banner stays hidden (the DB file is still there). Previously the banner keyed off `connected`, so an offline engine looked like a missing DB.
+- **Hub is authoritative for liveness once connected.** After the SignalR hub has connected at least once, the live connection drives online/offline (so killing the engine goes offline even though its `.db` lingers); before any connect, it falls back to the DB-exists check (unchanged Phase A behaviour).
+
 ### NEW
 - **Phase B live link (opt-in).** The bridge can now connect to the C# engine's SignalR hub (Marius' avalonia `SignalRService`, default `http://localhost:5200/signalr/signals`) for **real engine liveness** - "online" now means a live hub connection, not just "the DB file exists" - and **near-instant signal push** (a new signal pokes the oracle to read immediately instead of waiting for the ~1.5s poll). Off by default; enable with `CSB_SIGNALR=1` (or `CSB_SIGNALR_URL=...`) on the bridge **and** `General.SignalREnabled = true` in the engine. Without it, behaviour is exactly as before.
 - **Per-timeframe barometer + trend columns.** Two new (optional, off by default) signal columns show the market **barometer** and **trend direction** at signal time across 15m/30m/1h/4h/1d - compact coloured readouts (barometer numbers; trend ▲/▼). Enable them in the column picker.
