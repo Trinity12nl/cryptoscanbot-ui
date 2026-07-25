@@ -8,12 +8,23 @@ export interface DataFolderState {
   dbPath: string
 }
 
+/** The SignalR live-link toggle (our bridge-side switch) + the port it targets. */
+export interface SignalrState {
+  enabled: boolean
+  port: number
+}
+
 export interface DesktopApi {
   getDataFolder(): Promise<DataFolderState>
   pickDataFolder(): Promise<DataFolderState | null>
   /** Point the app straight at a known-good folder (the no-data banner's one-click suggestion). */
   setDataFolder(dir: string): Promise<DataFolderState>
   clearDataFolder(): Promise<DataFolderState>
+  /** Read the SignalR live-link toggle. */
+  getSignalr(): Promise<SignalrState>
+  /** Enable/disable the SignalR live link (restarts the bridge; no reload - the live socket
+   * reconnects and the status updates in place). */
+  setSignalr(enabled: boolean): Promise<SignalrState>
 }
 
 declare global {

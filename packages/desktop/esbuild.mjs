@@ -5,8 +5,11 @@ import esbuild from 'esbuild'
 const watch = process.argv.includes('--watch')
 
 // Native/heavy modules stay external and are shipped as real node_modules (electron-builder
-// rebuilds better-sqlite3 for Electron's ABI). Everything else (our TS, ws) is bundled in.
-const external = ['electron', 'better-sqlite3', 'ccxt']
+// rebuilds better-sqlite3 for Electron's ABI). `@microsoft/signalr` is external too: its Node
+// transports pull in optional deps (ws, eventsource, fetch-cookie -> tough-cookie, ...) via dynamic
+// requires that esbuild can't bundle, so we ship the package (a direct dep of @csb/desktop) and let
+// Node resolve its own subtree. Everything else (our TS) is bundled in.
+const external = ['electron', 'better-sqlite3', 'ccxt', '@microsoft/signalr']
 
 // The bridge/shared sources are ESM and import siblings with an explicit ".js" extension (e.g.
 // "./server.js"), but on disk they are ".ts". esbuild won't rewrite that, so map .js -> .ts when
