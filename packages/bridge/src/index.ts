@@ -2,7 +2,9 @@
 // start anything on import - the runnable CLI lives in cli.ts.
 export { startBridgeDefault } from './bootstrap.js'
 export { startBridge } from './server.js'
-export { SqliteDataSource, defaultDbPath, resolveDbPath, type DataLocation } from './sqlite-source.js'
+export {
+  SqliteDataSource, defaultDbPath, resolveDbPath, findOracleDbDir, type DataLocation,
+} from './sqlite-source.js'
 export { SignalrSource, resolveSignalrUrl } from './signalr-source.js'
 export { HybridDataSource } from './hybrid-source.js'
 export { TickerSource } from './ticker-source.js'

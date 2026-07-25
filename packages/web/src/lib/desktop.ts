@@ -11,6 +11,8 @@ export interface DataFolderState {
 export interface DesktopApi {
   getDataFolder(): Promise<DataFolderState>
   pickDataFolder(): Promise<DataFolderState | null>
+  /** Point the app straight at a known-good folder (the no-data banner's one-click suggestion). */
+  setDataFolder(dir: string): Promise<DataFolderState>
   clearDataFolder(): Promise<DataFolderState>
 }
 

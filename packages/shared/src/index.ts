@@ -139,6 +139,11 @@ export interface EngineInfo {
   /** true when the oracle DB file exists, independent of engine liveness. Drives the "no scanner
    * database found" banner, so quitting the engine shows offline but does NOT claim the DB is gone. */
   dbPresent: boolean
+  /** When the DB is absent at `dbPath` but a `CryptoScanBot.db` was found in a nearby folder (an
+   * immediate subfolder or the parent - the classic "picked one level off" case), this is that
+   * folder. The banner offers it as a one-click fix; null when nothing suitable is nearby. The bridge
+   * only ever SUGGESTS this - it never silently re-points. */
+  suggestedDataDir?: string | null
   /** Last time the bridge saw the DB change, epoch ms. */
   lastChangeMs: number | null
 }

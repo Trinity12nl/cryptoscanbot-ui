@@ -15,7 +15,10 @@ export function Header({ info, live, shown, today }: {
     <header className="flex items-center gap-6 border-b border-zinc-200 bg-white px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center gap-2">
         <img src="/logo.svg" alt="CryptoScanBot-ui" width={20} height={20} className="rounded-[5px]" />
-        <span className="text-sm font-semibold tracking-wide text-zinc-900 dark:text-zinc-100">CryptoScanBot-ui</span>
+        <div className="flex flex-col leading-none">
+          <span className="text-sm font-semibold tracking-wide text-zinc-900 dark:text-zinc-100">CryptoScanBot-ui</span>
+          <span className="mt-0.5 text-[10px] font-medium text-zinc-400 dark:text-zinc-500">v{__APP_VERSION__}</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 text-sm">
