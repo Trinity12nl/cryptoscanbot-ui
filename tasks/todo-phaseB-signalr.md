@@ -136,3 +136,25 @@ Runtime against the live default oracle:
 `SignalREnabled=true` -> confirm instant push + "online" only while the hub is connected); a desktop
 UI toggle (env opt-in only for now); asking Marius for backfill-on-connect + a periodic
 barometer/price broadcast (task #3).
+
+## Review pass - hardening (2026-07-25, self-review of the diff)
+
+Fresh-eyes pass over the branch. **Found + fixed one genuine bug** that would have failed the
+kill-the-engine test; everything else reviewed clean.
+
+- **BUG (fixed): liveness never went offline while the DB file existed.** `HybridDataSource.info()`
+  computed `connected = signalr.isConnected() || base.connected`. Killing the engine drops the hub
+  (`isConnected()` -> false) but leaves the `.db` on disk (`base.connected` still true), so the OR
+  kept it "online" - defeating Phase B's whole point. Fix: `SignalrSource.hasEverConnected()` (set on
+  first successful connect); `info()` now uses the live hub as authoritative *once it has ever
+  connected* (`hasEverConnected() ? isConnected() : base.connected`). So: engine with the hub, then
+  killed -> **offline**; an engine that never turned the hub on -> DB-exists fallback = unchanged
+  Phase A. Also added a `stopped` guard to `start()` (no dangling connection if started after close).
+- Reviewed clean: reconnect loop (single retry timer, no pile-up; `onclose`/failed-`connect` don't
+  double-schedule; no retry/callbacks after `close()` - listeners cleared before `conn.stop()`),
+  `pollNow()` guard, the 10 oracle columns + `trendDir` mapping.
+- Re-verified: typecheck (4 pkgs) + web prod build + ggshield clean; hub-absent `/api/info` -> 200
+  `connected:true` (fallback preserved). The offline-on-hub-drop path needs the real hub -> Inge's test.
+- Note for the real-hub test: `@microsoft/signalr` in Node negotiates then uses WebSocket; import +
+  build + connect-attempt all run fine headless, but the *successful* WS transport is only provable
+  against the running hub - watch for a `[signalr] connected to ...` log line during the test.

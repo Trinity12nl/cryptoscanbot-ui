@@ -44,6 +44,7 @@ export function resolveSignalrUrl(opts: { signalrUrl?: string } = {}): string | 
 export class SignalrSource {
   private conn: signalR.HubConnection | null = null
   private connected = false
+  private everConnected = false
   private stopped = false
   private retryTimer: NodeJS.Timeout | null = null
   private readonly signalListeners = new Set<(id: number) => void>()
@@ -55,9 +56,17 @@ export class SignalrSource {
     return this.connected
   }
 
+  /** true once the hub has connected at least once - i.e. the engine is known to expose the hub, so
+   * a later disconnect genuinely means "engine gone" (vs. an engine that simply never had the hub on,
+   * where we must not treat "never connected" as offline). Lets HybridDataSource decide when the hub
+   * is authoritative for liveness. */
+  hasEverConnected(): boolean {
+    return this.everConnected
+  }
+
   /** Build the connection and start the (self-managed) connect/reconnect loop. */
   start(): void {
-    if (this.conn) return
+    if (this.conn || this.stopped) return
     const conn = new signalR.HubConnectionBuilder()
       .withUrl(this.url)
       .configureLogging(signalR.LogLevel.None)
@@ -81,6 +90,7 @@ export class SignalrSource {
     if (!this.conn || this.stopped) return
     try {
       await this.conn.start()
+      this.everConnected = true
       this.setConnected(true)
       // eslint-disable-next-line no-console
       console.log(`[signalr] connected to ${this.url}`)

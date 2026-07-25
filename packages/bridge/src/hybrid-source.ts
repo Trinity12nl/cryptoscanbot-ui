@@ -40,9 +40,12 @@ export class HybridDataSource implements ScannerDataSource {
 
   async info(): Promise<EngineInfo> {
     const base = await this.sqlite.info()
-    // Real liveness first: a live hub connection means the engine is definitively running. Only when
-    // the hub is not connected do we fall back to the oracle's "the DB file exists" guess.
-    const connected = this.signalr.isConnected() || base.connected
+    // Liveness: once the hub has ever connected, the engine is known to expose it, so the LIVE hub
+    // connection is authoritative - a drop means the engine is gone even though its DB file lingers
+    // (the whole point of Phase B: kill the engine -> offline, not "the .db still exists -> online").
+    // Before any successful connect (e.g. an engine that never turned the hub on) we must NOT report
+    // offline, so we fall back to the oracle's DB-exists check = exactly the Phase-A behaviour.
+    const connected = this.signalr.hasEverConnected() ? this.signalr.isConnected() : base.connected
     const lastChangeMs = Math.max(base.lastChangeMs ?? 0, this.lastSignalrMs ?? 0) || null
     return { ...base, connected, lastChangeMs }
   }
