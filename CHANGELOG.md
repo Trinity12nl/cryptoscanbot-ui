@@ -9,7 +9,7 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
-## Unreleased
+## v0.7.0 - 2026-07-25
 
 ### FIX
 - **A transient error no longer blanks the whole screen.** The initial load fetched info + signals + prices + settings as one all-or-nothing `Promise.all`, so a single hiccup (e.g. a query 500'ing while the engine's startup sync holds the DB write lock) wiped everything until a manual reload. Each now loads independently, and the signal history retries a few times before giving up - so a blip on one call can't erase the rest (and info/prices/settings also stream in over the WebSocket).
