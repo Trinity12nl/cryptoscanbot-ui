@@ -159,7 +159,10 @@ export class SqliteDataSource implements ScannerDataSource {
   }
 
   async info(): Promise<EngineInfo> {
-    const connected = existsSync(this.dbPath)
+    // Standalone (Phase A) liveness == the DB file exists; the Hybrid source overrides `connected`
+    // with the live hub state but keeps `dbPresent` as this file-existence check.
+    const dbPresent = existsSync(this.dbPath)
+    const connected = dbPresent
     let exchange: string | null = null
     const db = this.open()
     if (db) {
@@ -170,7 +173,7 @@ export class SqliteDataSource implements ScannerDataSource {
         exchange = row?.Name ?? null
       } catch { /* schema may differ; leave null */ }
     }
-    return { exchange, dbPath: this.dbPath, connected, lastChangeMs: this.lastChangeMs }
+    return { exchange, dbPath: this.dbPath, connected, dbPresent, lastChangeMs: this.lastChangeMs }
   }
 
   async getSignals(opts: { limit?: number; sinceMs?: number } = {}): Promise<Signal[]> {

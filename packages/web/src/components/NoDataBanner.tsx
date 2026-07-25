@@ -8,7 +8,7 @@ import { getDesktop } from '../lib/desktop'
 export function NoDataBanner({ info, empty }: { info: EngineInfo | null; empty: boolean }) {
   const desktop = getDesktop()
   if (!info) return null
-  const missing = !info.connected
+  const missing = !info.dbPresent
   if (!missing && !empty) return null
 
   return (

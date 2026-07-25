@@ -133,8 +133,12 @@ export interface EngineInfo {
   exchange: string | null
   /** Path to the oracle DB the bridge is reading. */
   dbPath: string
-  /** true when the DB file exists and is readable. */
+  /** true when the engine is LIVE: a running SignalR hub connection (Phase B), or - with no hub -
+   * the oracle DB file exists (Phase A fallback). Drives the online/offline dot. */
   connected: boolean
+  /** true when the oracle DB file exists, independent of engine liveness. Drives the "no scanner
+   * database found" banner, so quitting the engine shows offline but does NOT claim the DB is gone. */
+  dbPresent: boolean
   /** Last time the bridge saw the DB change, epoch ms. */
   lastChangeMs: number | null
 }

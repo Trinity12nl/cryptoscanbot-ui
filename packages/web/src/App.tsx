@@ -166,7 +166,7 @@ export function App() {
 
   // The bridge is reading a DB with no data (usual cause: an engine started with `-f` writing
   // elsewhere). Guarded by `loaded` so it doesn't flash before the first fetch resolves.
-  const emptyDb = loaded && (info?.connected ?? false) && symbols.length === 0 && signals.length === 0
+  const emptyDb = loaded && (info?.dbPresent ?? false) && symbols.length === 0 && signals.length === 0
 
   return (
     <div className="flex h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
