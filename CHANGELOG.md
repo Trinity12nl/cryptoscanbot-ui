@@ -12,6 +12,7 @@ Uses [semantic versioning](https://semver.org/).
 ## Unreleased
 
 ### FIX
+- **A transient error no longer blanks the whole screen.** The initial load fetched info + signals + prices + settings as one all-or-nothing `Promise.all`, so a single hiccup (e.g. a query 500'ing while the engine's startup sync holds the DB write lock) wiped everything until a manual reload. Each now loads independently, and the signal history retries a few times before giving up - so a blip on one call can't erase the rest (and info/prices/settings also stream in over the WebSocket).
 - **Offline no longer claims "no database".** Liveness (`connected`) and DB-presence (`dbPresent`) are now separate `EngineInfo` fields: quitting the engine correctly flips the dot to offline while the "No scanner database found" banner stays hidden (the DB file is still there). Previously the banner keyed off `connected`, so an offline engine looked like a missing DB.
 - **Hub is authoritative for liveness once connected.** After the SignalR hub has connected at least once, the live connection drives online/offline (so killing the engine goes offline even though its `.db` lingers); before any connect, it falls back to the DB-exists check (unchanged Phase A behaviour).
 

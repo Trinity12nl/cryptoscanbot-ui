@@ -55,10 +55,29 @@ export function App() {
 
   useEffect(() => {
     let alive = true
-    Promise.all([fetchInfo(), fetchSignals(1000), fetchPrices(), fetchSettings()])
-      .then(([i, s, p, st]) => { if (alive) { setInfo(i); setSignals(s); setPrices(p); setSettings(st); if (st) prevConfigSig.current = st.configSignature } })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'load failed'))
-      .finally(() => { if (alive) setLoaded(true) })
+    // Load each piece independently (allSettled) so one transient failure - e.g. /api/prices or
+    // /api/settings 500'ing during the engine's startup-sync write burst - can't blank the whole
+    // screen. Signals is the history that matters most, so retry it a few times before giving up;
+    // info/prices/settings also stream over the WebSocket, so a missed initial fetch self-heals.
+    const loadSignals = async (attempt = 0): Promise<void> => {
+      try {
+        const s = await fetchSignals(1000)
+        if (alive) { setSignals(s); setError(null) }
+      } catch (e: unknown) {
+        if (!alive) return
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 1000))
+          return loadSignals(attempt + 1)
+        }
+        setError(e instanceof Error ? e.message : 'load failed')
+      }
+    }
+    Promise.allSettled([
+      fetchInfo().then((i) => { if (alive) setInfo(i) }),
+      loadSignals(),
+      fetchPrices().then((p) => { if (alive) setPrices(p) }),
+      fetchSettings().then((st) => { if (alive && st) { setSettings(st); prevConfigSig.current = st.configSignature } }),
+    ]).finally(() => { if (alive) setLoaded(true) })
 
     const off = connectBridge((ev) => {
       if (ev.type === 'info') setInfo(ev.info)
