@@ -50,6 +50,9 @@ importers:
 
   packages/desktop:
     dependencies:
+      '@microsoft/signalr':
+        specifier: ^8.0.7
+        version: 8.0.17(encoding@0.1.13)
       better-sqlite3:
         specifier: ^11.8.1
         version: 11.10.0

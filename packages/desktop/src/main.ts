@@ -16,9 +16,10 @@ const DEV_URL = process.env.CSB_DEV_URL
 let bridge: { close: () => void } | null = null
 let mainWindow: BrowserWindow | null = null
 
-// Persisted app config: the chosen engine data folder (the C# engine's `-f "datafolder"`). Lives in
-// Electron's per-user data dir, separate from the engine's own data.
-interface AppConfig { dataDir?: string | null }
+// Persisted app config: the chosen engine data folder (the C# engine's `-f "datafolder"`) and the
+// SignalR live-link toggle. Lives in Electron's per-user data dir, separate from the engine's data.
+interface AppConfig { dataDir?: string | null; signalrEnabled?: boolean; signalrPort?: number }
+const DEFAULT_SIGNALR_PORT = 5200
 function configPath(): string { return join(app.getPath('userData'), 'config.json') }
 
 function readConfig(): AppConfig {
@@ -27,6 +28,8 @@ function readConfig(): AppConfig {
 function writeConfig(cfg: AppConfig): void {
   try { writeFileSync(configPath(), JSON.stringify(cfg, null, 2)) } catch { /* non-fatal */ }
 }
+/** Merge a patch into the persisted config, so writing one setting never wipes the others. */
+function updateConfig(patch: Partial<AppConfig>): void { writeConfig({ ...readConfig(), ...patch }) }
 
 /** Current data folder + the DB path the bridge resolves from it (null dataDir = default location). */
 function dataFolderState(): { dataDir: string | null; dbPath: string } {
@@ -34,12 +37,21 @@ function dataFolderState(): { dataDir: string | null; dbPath: string } {
   return { dataDir, dbPath: resolveDbPath({ dataDir: dataDir ?? undefined }) }
 }
 
-/** (Re)start the in-process bridge against the configured data folder. No-op in dev (external bridge). */
+/** Current SignalR live-link toggle state (our bridge-side switch). */
+function signalrState(): { enabled: boolean; port: number } {
+  const cfg = readConfig()
+  return { enabled: cfg.signalrEnabled === true, port: cfg.signalrPort ?? DEFAULT_SIGNALR_PORT }
+}
+
+/** (Re)start the in-process bridge against the configured data folder + SignalR toggle. No-op in dev
+ * (external bridge). */
 function startOrRestartBridge(): void {
   if (DEV_URL) return
   bridge?.close()
   const dataDir = readConfig().dataDir ?? undefined
-  bridge = startBridgeDefault(PORT, { staticDir: webDistDir(), dataDir })
+  const sr = signalrState()
+  const signalrUrl = sr.enabled ? `http://localhost:${sr.port}/signalr/signals` : undefined
+  bridge = startBridgeDefault(PORT, { staticDir: webDistDir(), dataDir, signalrUrl })
 }
 
 function webDistDir(): string {
@@ -92,7 +104,7 @@ ipcMain.handle('csb:pickDataFolder', async () => {
     properties: ['openDirectory'],
   })
   if (res.canceled || res.filePaths.length === 0) return null
-  writeConfig({ dataDir: res.filePaths[0] })
+  updateConfig({ dataDir: res.filePaths[0] })
   startOrRestartBridge()
   mainWindow?.webContents.reload()
   return dataFolderState()
@@ -102,7 +114,7 @@ ipcMain.handle('csb:pickDataFolder', async () => {
 // suggestion). Same effect as picking it in the dialog, without opening one. Ignores empty input.
 ipcMain.handle('csb:setDataFolder', (_e, dir: unknown) => {
   if (typeof dir === 'string' && dir) {
-    writeConfig({ dataDir: dir })
+    updateConfig({ dataDir: dir })
     startOrRestartBridge()
     mainWindow?.webContents.reload()
   }
@@ -110,10 +122,23 @@ ipcMain.handle('csb:setDataFolder', (_e, dir: unknown) => {
 })
 
 ipcMain.handle('csb:clearDataFolder', () => {
-  writeConfig({ dataDir: null })
+  updateConfig({ dataDir: null })
   startOrRestartBridge()
   mainWindow?.webContents.reload()
   return dataFolderState()
+})
+
+// IPC: the SignalR live-link toggle (our bridge-side switch). Enabling restarts the in-process bridge
+// so it connects to the engine's hub; the engine must also have SignalREnabled=true and be running.
+ipcMain.handle('csb:getSignalr', () => signalrState())
+
+ipcMain.handle('csb:setSignalr', (_e, enabled: unknown) => {
+  updateConfig({ signalrEnabled: enabled === true })
+  startOrRestartBridge()
+  // No page reload here (unlike the data-folder change): the live link doesn't change the dataset
+  // (same DB), so the renderer's WebSocket just reconnects to the restarted bridge and the toggle
+  // status updates in place - the Settings modal stays open so you see it go live.
+  return signalrState()
 })
 
 void app.whenReady().then(() => {

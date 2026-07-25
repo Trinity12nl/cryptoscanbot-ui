@@ -204,6 +204,8 @@ export class SqliteDataSource implements ScannerDataSource {
     }
     return {
       exchange, dbPath: this.dbPath, connected, dbPresent, suggestedDataDir,
+      // Phase A: no hub. The Hybrid source overrides these when the SignalR link is enabled.
+      signalrEnabled: false, signalrConnected: false,
       lastChangeMs: this.lastChangeMs,
     }
   }

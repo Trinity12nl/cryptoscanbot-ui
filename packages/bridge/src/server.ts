@@ -42,7 +42,10 @@ export function startBridge(
   const readInfo = async (): Promise<EngineInfo> => {
     const info = await source.info()
     const active = settingsSource?.get()?.activeExchange
-    return active ? { ...info, exchange: active } : info
+    // The engine's OWN SignalR setting (the other half of the live link) - read-only, for the toggle
+    // to say whether the scanner side is on.
+    const engineSignalrEnabled = settingsSource?.getEngineSignalr().enabled ?? null
+    return { ...info, ...(active ? { exchange: active } : {}), engineSignalrEnabled }
   }
 
   const json = (res: ServerResponse, code: number, body: unknown) => {
@@ -132,18 +135,25 @@ export function startBridge(
     for (const ws of wss.clients) send(ws, ev)
   })
 
-  // Poll engine info and broadcast when the active exchange (or connected state) changes, so the
-  // header updates on an exchange switch without a manual page refresh. Cheap - one indexed row.
+  // Broadcast engine info to all clients when something meaningful changed (active exchange, liveness,
+  // SignalR state). De-duped by a key so we don't spam identical infos. Driven by BOTH a periodic
+  // poll (catches exchange switches / DB-existence) and an event hook (catches the SignalR hub
+  // connecting/dropping the instant it happens, so the header's Live/Polling mode is never stale).
   let lastInfoKey = ''
+  const broadcastInfo = async (): Promise<void> => {
+    const info = await readInfo()
+    const key = `${info.exchange}|${info.connected}|${info.signalrConnected}|${info.engineSignalrEnabled}`
+    if (key === lastInfoKey) return
+    lastInfoKey = key
+    const ev: BridgeEvent = { type: 'info', info }
+    for (const ws of wss.clients) send(ws, ev)
+  }
   const infoPoll = setInterval(() => {
-    void readInfo().then((info) => {
-      const key = `${info.exchange}|${info.connected}`
-      if (key === lastInfoKey) return
-      lastInfoKey = key
-      const ev: BridgeEvent = { type: 'info', info }
-      for (const ws of wss.clients) send(ws, ev)
-    }).catch(() => { /* transient; retry next tick */ })
+    void broadcastInfo().catch(() => { /* transient; retry next tick */ })
   }, 5_000)
+  const offInfoChange = source.onInfoChange?.(() => {
+    void broadcastInfo().catch(() => { /* transient */ })
+  })
 
   http.listen(port, '127.0.0.1', () => {
     // eslint-disable-next-line no-console
@@ -154,9 +164,15 @@ export function startBridge(
     close: () => {
       clearInterval(heartbeat)
       clearInterval(infoPoll)
+      offInfoChange?.()
       unsubscribe()
       unsubscribePrices()
       unsubscribeSettings?.()
+      // Force-close existing sockets. `wss.close()`/`http.close()` only stop ACCEPTING new
+      // connections - they leave current ones alive. On an in-process restart (data-folder or SignalR
+      // toggle) that would strand the UI's WebSocket on the OLD bridge instance (stale info/data)
+      // until a full page reload. Terminating them makes the client reconnect to the NEW bridge.
+      for (const ws of wss.clients) ws.terminate()
       wss.close()
       http.close()
       source.close()
