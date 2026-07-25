@@ -9,6 +9,22 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.1 - 2026-07-26
+
+### NEW
+- **Live-link toggle (no more env vars/JSON).** A switch in **Settings (gear) → "Live link (SignalR)"** turns the scanner's real-time push on or off from the UI. It shows live status and, when it's on but not connected, tells you to enable SignalR in the scanner and restart it. Enabling it no longer requires `CSB_SIGNALR=1` on the bridge.
+- **Connection status in the header.** A single status pill replaces the old engine dot + radio: **⚡ Live signals** (green) when signals push in from the scanner hub, **Polling (DB)** (muted) when reading the database directly, **connecting… / reconnecting…** while a link is being (re)established, and **Offline** (red) when there's no database at all. The header now shows the active exchange plainly next to it.
+
+### IMPROVED
+- **Flipping the live link updates in place.** The toggle no longer reloads the page - the status updates live in the modal and header. The live link doesn't change the dataset (same DB), so there's nothing to refetch; the WebSocket just reconnects to the restarted bridge.
+
+### FIX
+- **Live link now works in the packaged app.** `@microsoft/signalr`'s Node transports load `ws`, `eventsource`, `fetch-cookie` etc. via dynamic requires that esbuild couldn't bundle, so enabling SignalR inside the packaged Electron app threw `Cannot find module 'ws'`. The package is now shipped properly (marked external + a real dependency), matching how `ccxt`/`better-sqlite3` are handled.
+- **Status no longer sticks until a manual reload.** Two causes: the bridge only pushed fresh status on its 5-second poll (it now pushes the instant the hub connects or drops), and an in-process bridge restart left the UI's WebSocket bound to the *old* bridge instance (Node's `close()` keeps existing sockets alive) - the old sockets are now dropped so the UI reconnects to the new bridge.
+
+### TECH
+- **SignalR status + push plumbing.** `EngineInfo` gains `signalrEnabled` / `signalrConnected` / `engineSignalrEnabled`; `SettingsSource.getEngineSignalr()` reads the engine's own setting; new optional `ScannerDataSource.onInfoChange` lets the hub drive an immediate info broadcast. Desktop gains `csb:getSignalr` / `csb:setSignalr` IPC + `window.csb.getSignalr/setSignalr` and persists `signalrEnabled`/`signalrPort` (via a merging `updateConfig`). `@microsoft/signalr` is marked external in the esbuild config.
+
 ## v0.8.0 - 2026-07-25
 
 ### NEW
