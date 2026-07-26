@@ -9,6 +9,12 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.4 - 2026-07-26
+
+### FIX
+- **Live "Change" column now works on more exchanges.** The bridge's ticker feed keyed its exchange map by the wrong names (`OKX Futures` instead of the oracle's `Okx Futures`), so OKX had no live prices, and several exchanges were missing entirely. It now mirrors the chart-link table - keyed by the real oracle names - so Bybit/OKX (spot + futures), Coinbase, Kraken, plus Binance and Bybit EU futures all get a live-price feed with the correct ccxt market type (Binance USDT-M uses ccxt's `future`, others `swap`).
+- **No more HyperLiquid rate-limit spam.** HyperLiquid is a DEX (not a MiCAR-licensed exchange, out of scope) and its public API returns `429 Too Many Requests` on every poll, flooding the bridge log. It's deliberately dropped from the ticker map - its Change column stays empty instead of hammering the endpoint.
+
 ## v0.8.3 - 2026-07-26
 
 ### IMPROVED
