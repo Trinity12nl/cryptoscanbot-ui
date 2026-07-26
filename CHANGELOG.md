@@ -9,6 +9,15 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.3 - 2026-07-26
+
+### IMPROVED
+- **Signals clear when the scanner switches exchange.** The scanner wipes its signal table on an exchange switch (e.g. Bybit Spot -> Binance Futures); the UI used to keep showing the previous exchange's signals until a manual reload. Signals are now filtered to the active exchange (stale rows vanish the instant the header flips) and re-fetched on a switch, matching the scanner.
+- **Higher-timeframe SMC signals are no longer hidden by default.** SMC/zone strategies (OrderBlock, DominantLevel, FairValueGap) emit on higher timeframes (e.g. a 1h signal) even when the engine only *scans* 1m/2m/3m candles. The default filter used the scan intervals, so those signals were counted in "today" but filtered out of the table ("0 shown - 1 today"). The interval filter no longer defaults to the scan intervals (it shows all; strategies still default to what's enabled), so every emitted signal is visible.
+
+### FIX
+- **No more false "scanner database is empty" banner during a switch.** Switching exchange briefly empties symbols + signals for ~a minute while the engine backfills the new exchange, which tripped the "wrong `-f` folder" banner. It's now suppressed once real data has been seen this session, so it only warns about a genuinely empty/misconfigured folder at startup.
+
 ## v0.8.2 - 2026-07-26
 
 ### FIX
