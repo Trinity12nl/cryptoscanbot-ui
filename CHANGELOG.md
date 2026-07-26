@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.5 - 2026-07-26
+
+### FIX
+- **Header title aligned.** "CryptoScanBot-ui" sat slightly higher than the rest of the header text because the version label beneath it pushed the two-line title block up when centered. The version is now taken out of the layout flow (still tucked directly under the title), so the title sits on the same line as the exchange / status / counts.
+
 ## v0.8.4 - 2026-07-26
 
 ### FIX
