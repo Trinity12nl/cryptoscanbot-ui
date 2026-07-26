@@ -10,13 +10,30 @@ import type { PriceMap } from '@csb/shared'
  * Keyed by normalised symbol ("ONDO/USDT" -> "ONDOUSDT") so it matches Signal.symbol directly.
  */
 
-// C# exchange display name -> ccxt id + market type.
-const EXCHANGE_MAP: Record<string, { id: string; type: 'spot' | 'swap' }> = {
+// Oracle exchange name (Database.cs seed) -> ccxt id + market type (defaultType). Keyed by the exact
+// names the engine writes ("Okx Futures", not "OKX Futures"), mirroring the chart-links table so any
+// exchange the oracle reports gets a live-price feed. `type` is the ccxt defaultType: 'spot', 'swap'
+// for linear perps, or 'future' for Binance USDT-M (which ccxt keys differently from other venues).
+const EXCHANGE_MAP: Record<string, { id: string; type: 'spot' | 'swap' | 'future' }> = {
+  'Binance Spot': { id: 'binance', type: 'spot' },
+  'Binance Futures': { id: 'binance', type: 'future' },
+  'Bitvavo Spot': { id: 'bitvavo', type: 'spot' },
+  'BloFin Futures': { id: 'blofin', type: 'swap' },
   'Bybit Spot': { id: 'bybit', type: 'spot' },
-  'OKX Spot': { id: 'okx', type: 'spot' },
-  'OKX Futures': { id: 'okx', type: 'swap' },
+  'Bybit Futures': { id: 'bybit', type: 'swap' },
+  'Bybit EU Spot': { id: 'bybit', type: 'spot' },
+  'Bybit EU Futures': { id: 'bybit', type: 'swap' },
   'Coinbase Spot': { id: 'coinbase', type: 'spot' },
+  // HyperLiquid is intentionally omitted: it's a DEX (not a MiCAR-licensed CASP, out of scope) and
+  // its public API rate-limits aggressively (429s on every poll). The Change column stays empty for
+  // it. (chart-links.ts still maps it - building a TradingView URL makes no API call.)
   'Kraken Spot': { id: 'kraken', type: 'spot' },
+  'Kraken Futures': { id: 'krakenfutures', type: 'swap' },
+  'Kucoin Spot': { id: 'kucoin', type: 'spot' },
+  'Kucoin Futures': { id: 'kucoinfutures', type: 'swap' },
+  'Mexc Spot': { id: 'mexc', type: 'spot' },
+  'Okx Spot': { id: 'okx', type: 'spot' },
+  'Okx Futures': { id: 'okx', type: 'swap' },
 }
 
 function normSymbol(ccxtSymbol: string): string {
