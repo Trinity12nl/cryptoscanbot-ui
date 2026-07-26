@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.2 - 2026-07-26
+
+### FIX
+- **Single-click chart opens the right TradingView symbol.** The chart link now mirrors the C# scanner's per-exchange TradingView format exactly (from each exchange's `Api.cs`). Fixes several wrong links: **Binance Futures** now uses the perpetual suffix (`BINANCE:BTCUSDT.P`); **OKX** uses `OKEX:` (its key never matched the scanner's `Okx …` exchange name, so it silently fell back to Bybit); **Coinbase** uses `GDAX:`; and **Kraken Futures** uses the `KRAKEN.P:` prefix. Perpetual `.P` is now decided per-exchange (a futures market) instead of guessed from the symbol text, and an unknown exchange falls back to a bare symbol rather than a misleading Bybit prefix.
+
 ## v0.8.1 - 2026-07-26
 
 ### NEW
