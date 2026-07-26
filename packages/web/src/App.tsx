@@ -29,11 +29,16 @@ const PAGE_SIZE = 100
 
 // The "scanning" filter set = what the engine is actually scanning right now. This is the default
 // on load and what the Reset button returns to (so the scanned strategies/timeframes show ticked).
+// Note: intervals are deliberately left unrestricted (empty = all). The engine's Interval config is
+// which candle streams it *scans*, which is a poor proxy for which intervals signals appear on - the
+// SMC/zone strategies (smc/dlz/fvg) analyse higher timeframes and emit e.g. 1h signals even when only
+// 1m/2m/3m are scanned. Restricting by scan-intervals hid those valid signals; strategies still map
+// cleanly (enabled == emitted), so only they default to the scanned set.
 function scannedFilters(settings: EngineSettings | null): Filters {
   if (!settings) return DEFAULT_FILTERS
   const { long, short } = settings.sides
   const side: Filters['side'] = long && short ? 'all' : long ? 'long' : short ? 'short' : 'all'
-  return { strategies: settings.enabledStrategies, intervals: settings.enabledIntervals, side }
+  return { strategies: settings.enabledStrategies, intervals: [], side }
 }
 
 export function App() {
@@ -52,6 +57,8 @@ export function App() {
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didInitFilters = useRef(false)
   const prevConfigSig = useRef<string | null>(null)
+  const didInitExchange = useRef(false)
+  const everHadData = useRef(false)
 
   useEffect(() => {
     let alive = true
@@ -138,6 +145,24 @@ export function App() {
     return () => { alive = false; clearInterval(id) }
   }, [info?.exchange])
 
+  // When the engine switches exchange it wipes its Signal table (a signal belongs to one exchange), so
+  // re-fetch and REPLACE the list to drop the old exchange's rows from memory and load the new set.
+  // Skip the first known exchange (the initial load already fetched). The display is filtered by
+  // active exchange (activeSignals) so stale rows also vanish instantly during the switch.
+  useEffect(() => {
+    if (info?.exchange == null) return
+    if (!didInitExchange.current) { didInitExchange.current = true; return }
+    let alive = true
+    fetchSignals(1000).then((s) => { if (alive) setSignals(s) }).catch(() => { /* poll/WS self-heals */ })
+    return () => { alive = false }
+  }, [info?.exchange])
+
+  // Latch "we've seen real data this session" - used to suppress the empty-DB misconfig banner during
+  // a normal exchange switch (which briefly empties symbols+signals). Never resets short of a reload.
+  useEffect(() => {
+    if (symbols.length > 0 || signals.length > 0) everHadData.current = true
+  }, [symbols.length, signals.length])
+
   // Default the filters to what the engine is scanning, once, when settings first arrive.
   useEffect(() => {
     if (didInitFilters.current || !settings) return
@@ -148,15 +173,24 @@ export function App() {
   // Changing a filter starts the list from the top again.
   useEffect(() => { setVisibleCount(PAGE_SIZE) }, [filters])
 
+  // Only signals for the ACTIVE exchange. The scanner wipes its Signal table on an exchange switch, so
+  // rows from the previous exchange are no longer valid - filtering by info.exchange makes them vanish
+  // instantly (before the refetch below lands) instead of lingering in memory. Falls back to the full
+  // set while the exchange is still unknown (initial load).
+  const activeSignals = useMemo(
+    () => (info?.exchange ? signals.filter((s) => s.exchange === info.exchange) : signals),
+    [signals, info?.exchange],
+  )
+
   // Filter options: the full catalog, plus anything the engine reports enabled or that a signal
   // uses. FilterBar dims the ones the engine is not scanning.
   const strategies = useMemo(
-    () => unionCatalog(STRATEGY_CATALOG, settings?.enabledStrategies ?? [], signals.map((s) => s.strategy)),
-    [signals, settings],
+    () => unionCatalog(STRATEGY_CATALOG, settings?.enabledStrategies ?? [], activeSignals.map((s) => s.strategy)),
+    [activeSignals, settings],
   )
   const intervals = useMemo(
-    () => unionCatalog(INTERVAL_CATALOG, settings?.enabledIntervals ?? [], signals.map((s) => s.interval)),
-    [signals, settings],
+    () => unionCatalog(INTERVAL_CATALOG, settings?.enabledIntervals ?? [], activeSignals.map((s) => s.interval)),
+    [activeSignals, settings],
   )
 
   // Active quote coins (FetchCandles = true) mapped to their min volume - trims the symbols list and
@@ -170,22 +204,26 @@ export function App() {
   const todayCount = useMemo(() => {
     const start = new Date(); start.setHours(0, 0, 0, 0)
     const ms = start.getTime()
-    return signals.filter((s) => (s.openDateMs ?? 0) >= ms).length
-  }, [signals])
+    return activeSignals.filter((s) => (s.openDateMs ?? 0) >= ms).length
+  }, [activeSignals])
 
-  const filtered = useMemo(() => signals.filter((s) => {
+  const filtered = useMemo(() => activeSignals.filter((s) => {
     if (filters.side !== 'all' && s.side !== filters.side) return false
     if (filters.strategies.length > 0 && !filters.strategies.includes(s.strategy)) return false
     if (filters.intervals.length > 0 && !filters.intervals.includes(s.interval)) return false
     return true
-  }), [signals, filters])
+  }), [activeSignals, filters])
 
   // Paginated view: show PAGE_SIZE rows, "Load more" reveals the next page.
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount])
 
   // The bridge is reading a DB with no data (usual cause: an engine started with `-f` writing
-  // elsewhere). Guarded by `loaded` so it doesn't flash before the first fetch resolves.
-  const emptyDb = loaded && (info?.dbPresent ?? false) && symbols.length === 0 && signals.length === 0
+  // elsewhere). Guarded by `loaded` so it doesn't flash before the first fetch resolves, and by
+  // `everHadData` so a normal exchange switch - which transiently empties symbols+signals for a
+  // minute while the engine backfills the new exchange - doesn't trip the misconfig banner. Once
+  // we've seen real data this session, later emptiness is a switch/backfill, not a wrong folder.
+  const emptyDb = loaded && (info?.dbPresent ?? false) && symbols.length === 0
+    && activeSignals.length === 0 && !everHadData.current
 
   return (
     <div className="flex h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
