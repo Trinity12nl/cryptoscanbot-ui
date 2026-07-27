@@ -1,4 +1,4 @@
-import type { BridgeEvent, EngineInfo, EngineSettings, PriceMap, Signal, SymbolRow } from '@csb/shared'
+import type { BarometerGraph, BridgeEvent, EngineInfo, EngineSettings, PriceMap, Signal, SymbolRow } from '@csb/shared'
 
 /**
  * The web app's ONLY dependency on the backend: the local bridge (same origin in dev via Vite proxy,
@@ -36,6 +36,14 @@ export async function fetchSettings(): Promise<EngineSettings | null> {
   const r = await fetch('/api/settings')
   if (!r.ok) throw new Error(`settings ${r.status}`)
   return r.json() as Promise<EngineSettings | null>
+}
+
+/** Pull the ~7h barometer graph for a quote+interval (Phase B / SignalR only). Returns null when the
+ * bridge has no live engine link or the hub is not connected yet - the UI keeps its loading skeleton. */
+export async function fetchBarometerGraph(quote: string, interval: string): Promise<BarometerGraph | null> {
+  const r = await fetch(`/api/barometer-graph?quote=${encodeURIComponent(quote)}&interval=${encodeURIComponent(interval)}`)
+  if (!r.ok) return null
+  return r.json() as Promise<BarometerGraph>
 }
 
 /** Subscribe to live bridge events over WebSocket, with auto-reconnect. Returns an unsubscribe fn. */

@@ -9,6 +9,15 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.7 - 2026-07-28
+
+### NEW
+- **Scanner-header market strip.** A new always-visible header (when the SignalR live link is on) with four columns matching the C# scanner, styled to this app: **Barometer** (quote + timeframe selectors, the green/red graph ported from the old app, and the 1h/4h/1d readings beside it), **Market Indicators** (Market Cap Total, US Dollar Index, S&P 500, BTC Dominance, Fear & Greed - coloured by their move), **Crypto Prices** (BTC/ETH/XRP/SOL/ADA with 24h volume), and **Tickers** (counter placeholders for now - wired in a later scanner update).
+- **Barometer loading state.** While the scanner is still loading candles the graph area shows pulsating candlesticks (green/red bodies that grow and shrink) plus a live `Loading candles... N / M (SYMBOL)` progress line, instead of a half-filled graph. Progress now updates ~every 2s during load.
+
+### IMPROVED
+- **Columns button moved onto the filter row.** The "Columns" picker now sits at the right end of the strategies/intervals/side filter row instead of on its own line above the table, reclaiming a row of vertical space.
+
 ## v0.8.6 - 2026-07-28
 
 ### TECH

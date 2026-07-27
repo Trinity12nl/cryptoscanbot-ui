@@ -23,3 +23,16 @@ body {
   100% { background-color: transparent; }
 }
 .signal-new { animation: signal-highlight 5s ease-out forwards; }
+
+/* Barometer loading state: while the scanner is still loading candles (Ready=false) the graph area
+   shows pulsating candlesticks (Inge's chosen loading look, matching the C# scanner). The solid
+   green/red bodies grow and shrink vertically (heartbeat), centered on their fixed wick. */
+@keyframes baro-candle {
+  0%, 100% { transform: scaleY(0.5); }
+  50%      { transform: scaleY(1.15); }
+}
+.baro-candle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: baro-candle 1.1s ease-in-out infinite;
+}
