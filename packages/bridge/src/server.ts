@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
 import { WebSocketServer, type WebSocket } from 'ws'
-import type { BridgeEvent, EngineInfo, ScannerDataSource } from '@csb/shared'
+import type { BridgeEvent, EngineInfo, PriceMap, ScannerDataSource } from '@csb/shared'
 import type { TickerSource } from './ticker-source.js'
 import type { SettingsSource } from './settings-source.js'
 
@@ -27,14 +27,26 @@ const MIME: Record<string, string> = {
  * C# host (Phase B) changes nothing here or in the UI.
  *
  * REST:  GET /api/info | /api/signals?limit= | /api/symbols?exchange= | /api/prices
- * WS:    pushes { type:'signals' } as new signals land, { type:'prices' } as the ticker updates,
- *        and { type:'info' } + a first { type:'prices' } on connect.
+ *         | /api/barometer-graph?quote=&interval=
+ * WS:    pushes { type:'signals' } as new signals land, { type:'prices' } as prices update,
+ *        { type:'barometer' } + { type:'marketIndicators' } as the engine broadcasts them (Phase B),
+ *        and { type:'info' } + snapshot { type:'prices'|'barometer'|'marketIndicators'|'settings' }
+ *        on connect.
+ *
+ * Prices come from the engine's SignalR hub when it is live (Phase B), else the public ccxt ticker
+ * (Phase A). The hub is authoritative: while it feeds prices the ticker stands down.
  */
 export function startBridge(
   source: ScannerDataSource, ticker: TickerSource, port: number,
   opts: { staticDir?: string; settings?: SettingsSource } = {},
 ): { close: () => void } {
   const settingsSource = opts.settings ?? null
+
+  // Price source coordination. When the SignalR hub delivers a snapshot we prefer it and stand the
+  // ccxt ticker down; when the hub drops (seen via broadcastInfo below) we fall back to the ticker.
+  let signalrPricesLive = false
+  const currentPrices = (): PriceMap =>
+    (signalrPricesLive ? source.getSignalrPrices?.() : null) ?? ticker.getPrices()
 
   // The active exchange is the user's choice in settings (General.ActivateExchangeName), NOT the most
   // recently symbol-refreshed one - the oracle's LastTimeFetched lags a switch by up to an hour. So
@@ -85,7 +97,18 @@ export function startBridge(
           const exchange = url.searchParams.get('exchange') ?? undefined
           return json(res, 200, await source.getSymbols({ exchange }))
         }
-        if (url.pathname === '/api/prices') return json(res, 200, ticker.getPrices())
+        if (url.pathname === '/api/prices') return json(res, 200, currentPrices())
+        if (url.pathname === '/api/barometer-graph') {
+          if (!source.getBarometerGraph) return json(res, 404, { error: 'no live engine link' })
+          const quote = url.searchParams.get('quote') ?? 'USDT'
+          const interval = url.searchParams.get('interval') ?? '1h'
+          try {
+            return json(res, 200, await source.getBarometerGraph(quote, interval))
+          } catch (err: unknown) {
+            // Hub not connected / method missing: 503 so the UI keeps its pulsating skeleton.
+            return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
+          }
+        }
         if (url.pathname === '/api/settings') return json(res, 200, settingsSource?.get() ?? null)
         if (serveStatic(res, url.pathname)) return
         json(res, 404, { error: 'not found' })
@@ -111,23 +134,45 @@ export function startBridge(
     }
   }, 25_000)
 
+  const broadcast = (ev: BridgeEvent): void => {
+    for (const ws of wss.clients) send(ws, ev)
+  }
+
   wss.on('connection', (ws) => {
     alive.add(ws)
     ws.on('pong', () => alive.add(ws))
     void readInfo().then((info) => send(ws, { type: 'info', info }))
-    send(ws, { type: 'prices', prices: ticker.getPrices() })
+    send(ws, { type: 'prices', prices: currentPrices() })
     const settings = settingsSource?.get()
     if (settings) send(ws, { type: 'settings', settings })
+    // Phase B snapshot: replay the last-known engine broadcasts so a fresh tab is populated at once
+    // (the hub's own snapshot-on-connect reached only the bridge, not this browser client).
+    for (const barometer of source.getBarometers?.() ?? []) send(ws, { type: 'barometer', barometer })
+    const indicators = source.getMarketIndicators?.()
+    if (indicators) send(ws, { type: 'marketIndicators', indicators })
   })
 
   const unsubscribe = source.subscribeSignals((signals) => {
-    const ev: BridgeEvent = { type: 'signals', signals }
-    for (const ws of wss.clients) send(ws, ev)
+    broadcast({ type: 'signals', signals })
   })
 
+  // Public ccxt ticker updates: only forwarded while the SignalR hub is NOT the price source.
   const unsubscribePrices = ticker.subscribe((prices) => {
-    const ev: BridgeEvent = { type: 'prices', prices }
-    for (const ws of wss.clients) send(ws, ev)
+    if (signalrPricesLive) return
+    broadcast({ type: 'prices', prices })
+  })
+
+  // Phase B live market data (present only when the source exposes the hub streams).
+  const unsubscribeSignalrPrices = source.subscribePrices?.((prices) => {
+    signalrPricesLive = true
+    ticker.setEnabled(false)
+    broadcast({ type: 'prices', prices })
+  })
+  const unsubscribeBarometer = source.subscribeBarometer?.((barometer) => {
+    broadcast({ type: 'barometer', barometer })
+  })
+  const unsubscribeMarketIndicators = source.subscribeMarketIndicators?.((indicators) => {
+    broadcast({ type: 'marketIndicators', indicators })
   })
 
   const unsubscribeSettings = settingsSource?.subscribe((settings) => {
@@ -142,11 +187,16 @@ export function startBridge(
   let lastInfoKey = ''
   const broadcastInfo = async (): Promise<void> => {
     const info = await readInfo()
+    // Hub gone but we were on SignalR prices: fall back to the ccxt ticker. The SignalR source has
+    // already dropped its cached snapshot, so currentPrices() now returns the ticker's map.
+    if (signalrPricesLive && info.signalrConnected === false) {
+      signalrPricesLive = false
+      ticker.setEnabled(true)
+    }
     const key = `${info.exchange}|${info.connected}|${info.signalrConnected}|${info.engineSignalrEnabled}`
     if (key === lastInfoKey) return
     lastInfoKey = key
-    const ev: BridgeEvent = { type: 'info', info }
-    for (const ws of wss.clients) send(ws, ev)
+    broadcast({ type: 'info', info })
   }
   const infoPoll = setInterval(() => {
     void broadcastInfo().catch(() => { /* transient; retry next tick */ })
@@ -167,6 +217,9 @@ export function startBridge(
       offInfoChange?.()
       unsubscribe()
       unsubscribePrices()
+      unsubscribeSignalrPrices?.()
+      unsubscribeBarometer?.()
+      unsubscribeMarketIndicators?.()
       unsubscribeSettings?.()
       // Force-close existing sockets. `wss.close()`/`http.close()` only stop ACCEPTING new
       // connections - they leave current ones alive. On an in-process restart (data-folder or SignalR
