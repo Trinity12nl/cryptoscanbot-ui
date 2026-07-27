@@ -1,61 +1,10 @@
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnOrderState,
-  type SortingState,
-  type VisibilityState,
-} from '@tanstack/react-table'
+import { flexRender, type Table } from '@tanstack/react-table'
 import { ChevronDown, ChevronUp, ChevronsUpDown, Pencil } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import type { Signal } from '@csb/shared'
 import { signalExpiryMs } from '@csb/shared'
-import { buildSignalColumns, DEFAULT_COLUMN_VISIBILITY } from './signal-columns'
-import { ColumnPicker } from './ColumnPicker'
+import { moveColumn } from '../lib/signal-table'
 import { buildChartUrl, getChartLinkProvider } from '../lib/chart-links'
-
-const COLUMN_VISIBILITY_KEY = 'csb.signalColumns'
-const COLUMN_ORDER_KEY = 'csb.signalColumnOrder'
-
-function loadColumnVisibility(): VisibilityState {
-  try {
-    const raw = localStorage.getItem(COLUMN_VISIBILITY_KEY)
-    if (!raw) return { ...DEFAULT_COLUMN_VISIBILITY }
-    const parsed = JSON.parse(raw) as unknown
-    if (typeof parsed !== 'object' || parsed === null) return { ...DEFAULT_COLUMN_VISIBILITY }
-    return { ...DEFAULT_COLUMN_VISIBILITY, ...(parsed as VisibilityState) }
-  } catch {
-    return { ...DEFAULT_COLUMN_VISIBILITY }
-  }
-}
-
-function loadColumnOrder(): ColumnOrderState {
-  try {
-    const raw = localStorage.getItem(COLUMN_ORDER_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed) || !parsed.every((x) => typeof x === 'string')) return []
-    return parsed as ColumnOrderState
-  } catch {
-    return []
-  }
-}
-
-// Keep known ids in their saved position, append new columns at the end, drop removed ids.
-function reconcileOrder(saved: ColumnOrderState, allIds: string[]): ColumnOrderState {
-  const known = saved.filter((id) => allIds.includes(id))
-  const missing = allIds.filter((id) => !known.includes(id))
-  return [...known, ...missing]
-}
-
-function moveColumn(order: string[], from: string, to: string): ColumnOrderState {
-  const without = order.filter((id) => id !== from)
-  const idx = without.indexOf(to)
-  if (idx < 0) return order
-  without.splice(idx, 0, from)
-  return without
-}
 
 // Sticky header: stays put while the table body scrolls. Needs a SOLID background (the row content
 // scrolls underneath) and its own bottom border, since the header row can detach from the tbody.
@@ -81,8 +30,10 @@ function formatTimeAgo(timestampMs: number): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-export function SignalTable({ signals, newIds, expireCandles, settingsChangedAt, hasMore, onLoadMore }: {
-  signals: Signal[]
+export function SignalTable({ table, newIds, expireCandles, settingsChangedAt, hasMore, onLoadMore }: {
+  /** The shared signal table (created in App via useSignalTable, so the ColumnPicker can sit in the
+   * filter bar). Its data is the visible signal rows. */
+  table: Table<Signal>
   newIds: ReadonlySet<number>
   /** Candles after which a signal is stale (from engine settings; 0 = never). Dims expired rows. */
   expireCandles: number
@@ -92,47 +43,13 @@ export function SignalTable({ signals, newIds, expireCandles, settingsChangedAt,
   hasMore: boolean
   onLoadMore: () => void
 }) {
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(loadColumnVisibility)
-  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(loadColumnOrder)
   const dragColRef = useRef<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
-
-  useEffect(() => {
-    try { localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(columnVisibility)) } catch { /* non-fatal */ }
-  }, [columnVisibility])
-
-  useEffect(() => {
-    if (columnOrder.length === 0) return
-    try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(columnOrder)) } catch { /* non-fatal */ }
-  }, [columnOrder])
-
-  const columns = useMemo(() => buildSignalColumns(), [])
-  const allColumnIds = useMemo(() => columns.map((c) => c.id as string), [columns])
-
-  useEffect(() => {
-    setColumnOrder((prev) => {
-      const next = reconcileOrder(prev, allColumnIds)
-      return next.length === prev.length && next.every((id, i) => id === prev[i]) ? prev : next
-    })
-  }, [allColumnIds])
-
-  const table = useReactTable({
-    data: signals,
-    columns,
-    state: { sorting, columnVisibility, columnOrder },
-    onSortingChange: setSorting,
-    onColumnVisibilityChange: setColumnVisibility,
-    onColumnOrderChange: setColumnOrder,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  })
+  const sorting = table.getState().sorting
+  const allColumnIds = table.getAllLeafColumns().map((c) => c.id)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col space-y-2">
-      <div className="flex justify-end">
-        <ColumnPicker table={table} />
-      </div>
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -148,7 +65,7 @@ export function SignalTable({ signals, newIds, expireCandles, settingsChangedAt,
                     onDrop={(e) => {
                       e.preventDefault()
                       const from = dragColRef.current
-                      if (from && from !== h.column.id) setColumnOrder((o) => moveColumn(o.length > 0 ? o : allColumnIds, from, h.column.id))
+                      if (from && from !== h.column.id) table.setColumnOrder((o) => moveColumn(o.length > 0 ? o : allColumnIds, from, h.column.id))
                       dragColRef.current = null
                       setDragOverCol(null)
                     }}

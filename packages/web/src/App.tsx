@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { EngineInfo, EngineSettings, PriceMap, Signal, SymbolRow } from '@csb/shared'
+import type { Barometer, EngineInfo, EngineSettings, MarketIndicators, PriceMap, Signal, SymbolRow } from '@csb/shared'
 import { INTERVAL_SEC } from '@csb/shared'
 import { connectBridge, fetchInfo, fetchPrices, fetchSettings, fetchSignals, fetchSymbols } from './lib/api.ts'
 import { PricesContext } from './context/PricesContext.tsx'
 import { Header } from './components/Header.tsx'
+import { MarketHeader } from './components/MarketHeader.tsx'
 import { FilterBar, DEFAULT_FILTERS, type Filters } from './components/FilterBar.tsx'
 import { SignalTable } from './components/SignalTable.tsx'
+import { ColumnPicker } from './components/ColumnPicker.tsx'
 import { SymbolsPanel } from './components/SymbolsPanel.tsx'
 import { NoDataBanner } from './components/NoDataBanner.tsx'
+import { useSignalTable } from './lib/signal-table.ts'
 
 // Full known catalogs so the filters always show every strategy/timeframe - the ones the engine
 // is not scanning appear dimmed as "not scanning" (like the previous app version), instead of only
@@ -48,6 +51,8 @@ export function App() {
   const [signals, setSignals] = useState<Signal[]>([])
   const [symbols, setSymbols] = useState<SymbolRow[]>([])
   const [prices, setPrices] = useState<PriceMap>({})
+  const [barometers, setBarometers] = useState<Map<string, Barometer>>(new Map())
+  const [indicators, setIndicators] = useState<MarketIndicators | null>(null)
   const [settings, setSettings] = useState<EngineSettings | null>(null)
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [error, setError] = useState<string | null>(null)
@@ -89,6 +94,8 @@ export function App() {
     const off = connectBridge((ev) => {
       if (ev.type === 'info') setInfo(ev.info)
       if (ev.type === 'prices') setPrices(ev.prices)
+      if (ev.type === 'barometer') setBarometers((prev) => new Map(prev).set(ev.barometer.quote, ev.barometer))
+      if (ev.type === 'marketIndicators') setIndicators(ev.indicators)
       if (ev.type === 'settings') {
         // Flag the banner only when the scan-relevant config actually changed (signature), not on
         // the engine's bookkeeping rewrites (which bump the file mtime) or a WS reconnect.
@@ -217,6 +224,10 @@ export function App() {
   // Paginated view: show PAGE_SIZE rows, "Load more" reveals the next page.
   const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount])
 
+  // The signal grid's table lives here (not in SignalTable) so the ColumnPicker can sit in the filter
+  // bar row while the grid renders below - both share this one instance.
+  const table = useSignalTable(visible)
+
   // The bridge is reading a DB with no data (usual cause: an engine started with `-f` writing
   // elsewhere). Guarded by `loaded` so it doesn't flash before the first fetch resolves, and by
   // `everHadData` so a normal exchange switch - which transiently empties symbols+signals for a
@@ -228,6 +239,9 @@ export function App() {
   return (
     <div className="flex h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <Header info={info} live={live} shown={visible.length} today={todayCount} />
+      {info?.signalrConnected && (
+        <MarketHeader barometers={barometers} indicators={indicators} prices={prices} symbols={symbols} />
+      )}
       <NoDataBanner info={info} empty={emptyDb} />
       {error && (
         <div className="bg-red-500/10 px-4 py-2 text-sm text-red-600 dark:text-red-400">
@@ -237,12 +251,15 @@ export function App() {
       <div className="flex min-h-0 flex-1">
         <SymbolsPanel symbols={symbols} activeQuoteMins={activeQuoteMins} />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
+          <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
             <FilterBar filters={filters} onChange={setFilters} strategies={strategies} intervals={intervals} settings={settings} onReset={() => setFilters(scannedFilters(settings))} />
+            <div className="ml-auto">
+              <ColumnPicker table={table} />
+            </div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
             <PricesContext.Provider value={prices}>
-              <SignalTable signals={visible} newIds={newIds} expireCandles={settings?.removeSignalAfterCandles ?? 0} settingsChangedAt={settingsChangedAt} hasMore={filtered.length > visible.length} onLoadMore={() => setVisibleCount((c) => c + PAGE_SIZE)} />
+              <SignalTable table={table} newIds={newIds} expireCandles={settings?.removeSignalAfterCandles ?? 0} settingsChangedAt={settingsChangedAt} hasMore={filtered.length > visible.length} onLoadMore={() => setVisibleCount((c) => c + PAGE_SIZE)} />
             </PricesContext.Provider>
           </div>
         </main>
