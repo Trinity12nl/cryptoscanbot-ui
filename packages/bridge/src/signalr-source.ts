@@ -1,4 +1,8 @@
 import * as signalR from '@microsoft/signalr'
+import type { Barometer, BarometerGraph, MarketIndicators, PriceMap } from '@csb/shared'
+import {
+  parseBarometer, parseBarometerGraph, parseMarketIndicators, parsePrices,
+} from './signalr-dto.js'
 
 /**
  * Phase B live link: a SignalR client that connects to the C# engine's hub
@@ -50,6 +54,16 @@ export class SignalrSource {
   private readonly signalListeners = new Set<(id: number) => void>()
   private readonly stateListeners = new Set<(connected: boolean) => void>()
 
+  // Phase B live market data. We cache the last value of each stream so the bridge can replay a
+  // snapshot to every newly-connected UI client (the hub's own snapshot-on-connect only reaches us,
+  // the single hub client, not each browser tab).
+  private readonly barometerListeners = new Set<(b: Barometer) => void>()
+  private readonly pricesListeners = new Set<(p: PriceMap) => void>()
+  private readonly marketIndicatorsListeners = new Set<(m: MarketIndicators) => void>()
+  private readonly lastBarometerByQuote = new Map<string, Barometer>()
+  private lastPrices: PriceMap | null = null
+  private lastMarketIndicators: MarketIndicators | null = null
+
   constructor(private readonly url: string) {}
 
   isConnected(): boolean {
@@ -76,10 +90,30 @@ export class SignalrSource {
     conn.on('ReceiveSignal', (dto: CryptoSignalDto) => {
       for (const cb of this.signalListeners) cb(dto.Id)
     })
+    conn.on('ReceiveBarometer', (dto: Parameters<typeof parseBarometer>[0]) => {
+      const b = parseBarometer(dto)
+      this.lastBarometerByQuote.set(b.quote, b)
+      for (const cb of this.barometerListeners) cb(b)
+    })
+    conn.on('ReceivePrices', (dto: Parameters<typeof parsePrices>[0]) => {
+      const p = parsePrices(dto)
+      this.lastPrices = p
+      for (const cb of this.pricesListeners) cb(p)
+    })
+    conn.on('ReceiveMarketIndicators', (dto: Parameters<typeof parseMarketIndicators>[0]) => {
+      const m = parseMarketIndicators(dto)
+      this.lastMarketIndicators = m
+      for (const cb of this.marketIndicatorsListeners) cb(m)
+    })
     // We drive reconnection ourselves (below) rather than withAutomaticReconnect, so the same loop
     // covers both an initial connect failure (hub not up yet) and a later drop.
     conn.onclose(() => {
       this.setConnected(false)
+      // Drop cached market data so we never replay a stale snapshot to a new client while the hub is
+      // down; the server falls back to the ccxt ticker for prices until the hub reconnects.
+      this.lastBarometerByQuote.clear()
+      this.lastPrices = null
+      this.lastMarketIndicators = null
       this.scheduleRetry()
     })
 
@@ -126,11 +160,59 @@ export class SignalrSource {
     return () => { this.stateListeners.delete(cb) }
   }
 
+  // --- Phase B live market data ---
+
+  /** Fires on every per-quote barometer tip. Returns an unsubscribe fn. */
+  onBarometer(cb: (b: Barometer) => void): () => void {
+    this.barometerListeners.add(cb)
+    return () => { this.barometerListeners.delete(cb) }
+  }
+
+  /** Fires on every live price snapshot. Returns an unsubscribe fn. */
+  onPrices(cb: (p: PriceMap) => void): () => void {
+    this.pricesListeners.add(cb)
+    return () => { this.pricesListeners.delete(cb) }
+  }
+
+  /** Fires on every market-indicators broadcast. Returns an unsubscribe fn. */
+  onMarketIndicators(cb: (m: MarketIndicators) => void): () => void {
+    this.marketIndicatorsListeners.add(cb)
+    return () => { this.marketIndicatorsListeners.delete(cb) }
+  }
+
+  /** Last-known barometer tip per quote (for snapshot-on-connect to a new UI client). */
+  getBarometers(): Barometer[] {
+    return [...this.lastBarometerByQuote.values()]
+  }
+
+  /** Last-known hub price snapshot, or null if none delivered yet / hub is down. */
+  getLastPrices(): PriceMap | null {
+    return this.lastPrices
+  }
+
+  /** Last-known market indicators, or null if none delivered yet / hub is down. */
+  getLastMarketIndicators(): MarketIndicators | null {
+    return this.lastMarketIndicators
+  }
+
+  /** Pull the ~7h barometer graph for a quote+interval from the engine hub.
+   * Rejects when the hub is not connected. */
+  async getBarometerGraph(quote: string, interval: string): Promise<BarometerGraph> {
+    if (!this.conn || !this.connected) throw new Error('SignalR hub not connected')
+    const wire = await this.conn.invoke<Parameters<typeof parseBarometerGraph>[0]>(
+      'GetBarometerGraph', quote, interval,
+    )
+    return parseBarometerGraph(wire)
+  }
+
   close(): void {
     this.stopped = true
     if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null }
     this.signalListeners.clear()
     this.stateListeners.clear()
+    this.barometerListeners.clear()
+    this.pricesListeners.clear()
+    this.marketIndicatorsListeners.clear()
     const c = this.conn
     this.conn = null
     if (c) void c.stop().catch(() => { /* already down */ })

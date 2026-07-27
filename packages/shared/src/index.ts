@@ -171,12 +171,85 @@ export interface ScannerDataSource {
    * connects/disconnects - so the server can push a fresh EngineInfo immediately instead of waiting
    * for its periodic poll. Sources without live liveness (Phase A) can omit it. Returns unsubscribe. */
   onInfoChange?(cb: () => void): () => void
+
+  // --- Phase B live market data (SignalR hub). All optional: Phase A (SQLite only) omits them, and
+  // the bridge simply falls back to its Phase-A behaviour (ccxt ticker for prices, no barometer/
+  // indicators). The subscribe* methods fire on every live broadcast; the get* methods return the
+  // last-known value so the bridge can replay a snapshot to each newly-connected UI client. ---
+
+  /** Fires on every per-quote barometer tip. Returns an unsubscribe fn. */
+  subscribeBarometer?(cb: (b: Barometer) => void): () => void
+  /** Last-known barometer tip per quote (for snapshot-on-connect). */
+  getBarometers?(): Barometer[]
+  /** Fires on every live price snapshot from the hub. Returns an unsubscribe fn. */
+  subscribePrices?(cb: (p: PriceMap) => void): () => void
+  /** Last-known hub price snapshot, or null if the hub has not delivered one yet. */
+  getSignalrPrices?(): PriceMap | null
+  /** Fires on every market-indicators broadcast. Returns an unsubscribe fn. */
+  subscribeMarketIndicators?(cb: (m: MarketIndicators) => void): () => void
+  /** Last-known market indicators, or null if none delivered yet. */
+  getMarketIndicators?(): MarketIndicators | null
+  /** Pull the ~7h barometer graph for a quote+interval from the engine. Rejects if the hub is down. */
+  getBarometerGraph?(quote: string, interval: string): Promise<BarometerGraph>
+
   close(): void
 }
 
 /** Live last-price per normalised symbol name (e.g. "ONDOUSDT" -> 0.398). Sourced from a public
- * exchange ticker feed in Phase A; will move to the headless C# engine in Phase B (same shape). */
+ * exchange ticker feed in Phase A; moves to the headless C# engine's SignalR hub in Phase B (same
+ * shape). When the hub is live the bridge prefers its prices and stands the ccxt ticker down. */
 export type PriceMap = Record<string, number>
+
+/**
+ * Live per-quote barometer tip from the engine (SignalR `ReceiveBarometer`, ~1/min). Each timeframe
+ * reading is the current barometer % or null while still loading. Phase B only.
+ */
+export interface Barometer {
+  exchange: string
+  quote: string
+  m15: number | null; m30: number | null; h1: number | null; h4: number | null; d1: number | null
+  /** When the engine computed it, epoch ms UTC (null if unparseable). */
+  calculatedAtMs: number | null
+  /** false while the engine is still loading candles - the UI shows a pulsating skeleton, never a
+   * half-filled graph. Flips true once the engine reaches Running. */
+  ready: boolean
+  /** Human progress string while loading, e.g. "25 / 25 (XRPUSDT)"; "" once ready. */
+  progress: string
+}
+
+/** One point of the 7h barometer graph. */
+export interface BarometerPoint {
+  /** Point time, epoch ms UTC. */
+  tMs: number
+  value: number
+}
+
+/** The ~7h barometer graph for one quote+interval, pulled on demand from the engine
+ * (SignalR `GetBarometerGraph`). Points are per-minute, oldest first. */
+export interface BarometerGraph {
+  exchange: string
+  quote: string
+  interval: string
+  ready: boolean
+  progress: string
+  points: BarometerPoint[]
+}
+
+/** One market indicator (SignalR `ReceiveMarketIndicators`): a TradingView value or Fear & Greed. */
+export interface MarketIndicator {
+  name: string
+  value: number
+  /** 0 when the indicator carries no volume (e.g. Fear & Greed index). */
+  volume: number
+}
+
+/** The 5 market indicators broadcast together (~1/min): Market Cap Total, US Dollar Index, S&P 500,
+ * BTC Dominance, Fear and Greed index. Phase B only. */
+export interface MarketIndicators {
+  /** Broadcast time, epoch ms UTC (null if unparseable). */
+  dateMs: number | null
+  indicators: MarketIndicator[]
+}
 
 /**
  * What the engine is CONFIGURED to scan, for the active exchange - read (never written) from the C#
@@ -221,9 +294,12 @@ export function signalChangePct(signalPrice: number | null, livePrice: number | 
   return 100 * (livePrice / signalPrice - 1)
 }
 
-/** WebSocket message envelope the bridge pushes to the UI. */
+/** WebSocket message envelope the bridge pushes to the UI. The barometer graph is a REST pull
+ * (`GET /api/barometer-graph`), not a push event, since the UI requests it per quote+interval. */
 export type BridgeEvent =
   | { type: 'signals'; signals: Signal[] }
   | { type: 'info'; info: EngineInfo }
   | { type: 'prices'; prices: PriceMap }
   | { type: 'settings'; settings: EngineSettings }
+  | { type: 'barometer'; barometer: Barometer }
+  | { type: 'marketIndicators'; indicators: MarketIndicators }

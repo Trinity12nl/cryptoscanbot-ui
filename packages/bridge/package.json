@@ -12,7 +12,8 @@
     "start": "tsx src/cli.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "probe:signalr": "node probe-signalr.mjs"
+    "probe:signalr": "node probe-signalr.mjs",
+    "probe:bridge": "node probe-bridge.mjs"
   },
   "dependencies": {
     "@csb/shared": "workspace:*",

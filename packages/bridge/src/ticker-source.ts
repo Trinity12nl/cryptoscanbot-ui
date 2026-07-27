@@ -46,6 +46,9 @@ export class TickerSource {
   private timer: NodeJS.Timeout | null = null
   private readonly listeners = new Set<(p: PriceMap) => void>()
   private exchangeName: string | null = null
+  // false while the engine's SignalR hub is feeding prices: the public ccxt ticker stands down to
+  // avoid double-feeding the PriceMap (and the needless API load). Re-enabled when the hub drops.
+  private enabled = true
 
   /** (Re)point at the exchange the engine reports. No-op if unchanged or unsupported. */
   start(exchangeName: string | null): void {
@@ -65,8 +68,18 @@ export class TickerSource {
     void this.poll()
   }
 
+  /** Enable/disable the public ticker feed. When SignalR prices go live the bridge disables it (the
+   * hub is authoritative); when the hub drops it re-enables and immediately polls again. Idempotent. */
+  setEnabled(enabled: boolean): void {
+    if (enabled === this.enabled) return
+    this.enabled = enabled
+    // eslint-disable-next-line no-console
+    console.log(`[ticker] ${enabled ? 'enabled (hub prices unavailable)' : 'disabled (SignalR prices live)'}`)
+    if (enabled) void this.poll()
+  }
+
   private async poll(): Promise<void> {
-    if (!this.ex) return
+    if (!this.ex || !this.enabled) return
     try {
       const tickers = await this.ex.fetchTickers()
       const next: PriceMap = {}

@@ -1,4 +1,7 @@
-import type { EngineInfo, ScannerDataSource, Signal, SymbolRow } from '@csb/shared'
+import type {
+  Barometer, BarometerGraph, EngineInfo, MarketIndicators, PriceMap, ScannerDataSource, Signal,
+  SymbolRow,
+} from '@csb/shared'
 import type { SqliteDataSource } from './sqlite-source.js'
 import type { SignalrSource } from './signalr-source.js'
 
@@ -70,6 +73,36 @@ export class HybridDataSource implements ScannerDataSource {
    * Live/Polling mode) updates immediately instead of waiting for the server's periodic poll. */
   onInfoChange(cb: () => void): () => void {
     return this.signalr.onConnectionChange(() => cb())
+  }
+
+  // --- Phase B live market data: delegate straight to the SignalR hub client. ---
+
+  subscribeBarometer(cb: (b: Barometer) => void): () => void {
+    return this.signalr.onBarometer(cb)
+  }
+
+  getBarometers(): Barometer[] {
+    return this.signalr.getBarometers()
+  }
+
+  subscribePrices(cb: (p: PriceMap) => void): () => void {
+    return this.signalr.onPrices(cb)
+  }
+
+  getSignalrPrices(): PriceMap | null {
+    return this.signalr.getLastPrices()
+  }
+
+  subscribeMarketIndicators(cb: (m: MarketIndicators) => void): () => void {
+    return this.signalr.onMarketIndicators(cb)
+  }
+
+  getMarketIndicators(): MarketIndicators | null {
+    return this.signalr.getLastMarketIndicators()
+  }
+
+  getBarometerGraph(quote: string, interval: string): Promise<BarometerGraph> {
+    return this.signalr.getBarometerGraph(quote, interval)
   }
 
   close(): void {
