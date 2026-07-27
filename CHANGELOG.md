@@ -9,6 +9,13 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.6 - 2026-07-28
+
+### TECH
+- **Bridge now consumes the scanner's SignalR market-data broadcasts.** The C# scanner emits its barometer graph, per-minute barometer tips, a compact price snapshot, and the 5 market indicators (Market Cap Total, DXY, S&P 500, BTC Dominance, Fear & Greed) over SignalR. The bridge reads all of it and re-exposes it to the UI behind the existing data-source seam: new WS `barometer` + `marketIndicators` events, a snapshot replay on connect, and a REST `GET /api/barometer-graph?quote=&interval=` pull. No visible UI yet - the panels that render this land next.
+- **SignalR prices preferred over the public ticker.** When the scanner's hub is live the bridge uses its price snapshot (the fetched/loaded symbol set) and stands the public ccxt ticker down; if the hub drops it fails back to the ccxt ticker within ~5s. Avoids double-feeding the Change column and needless exchange API load.
+- **`probe:bridge` dev tool.** A standalone probe (`pnpm --filter @csb/bridge probe:bridge`) that exercises the bridge's own REST + WS - one layer above the raw-hub `probe:signalr` - for verifying the live link without the UI.
+
 ## v0.8.5 - 2026-07-26
 
 ### FIX
