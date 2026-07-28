@@ -1,7 +1,7 @@
 import * as signalR from '@microsoft/signalr'
-import type { Barometer, BarometerGraph, MarketIndicators, PriceMap } from '@csb/shared'
+import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, Tickers } from '@csb/shared'
 import {
-  parseBarometer, parseBarometerGraph, parseMarketIndicators, parsePrices,
+  parseBarometer, parseBarometerGraph, parseMarketIndicators, parsePrices, parseTickers,
 } from './signalr-dto.js'
 
 /**
@@ -60,9 +60,11 @@ export class SignalrSource {
   private readonly barometerListeners = new Set<(b: Barometer) => void>()
   private readonly pricesListeners = new Set<(p: PriceMap) => void>()
   private readonly marketIndicatorsListeners = new Set<(m: MarketIndicators) => void>()
+  private readonly tickersListeners = new Set<(t: Tickers) => void>()
   private readonly lastBarometerByQuote = new Map<string, Barometer>()
   private lastPrices: PriceMap | null = null
   private lastMarketIndicators: MarketIndicators | null = null
+  private lastTickers: Tickers | null = null
 
   constructor(private readonly url: string) {}
 
@@ -105,6 +107,11 @@ export class SignalrSource {
       this.lastMarketIndicators = m
       for (const cb of this.marketIndicatorsListeners) cb(m)
     })
+    conn.on('ReceiveTickers', (dto: Parameters<typeof parseTickers>[0]) => {
+      const t = parseTickers(dto)
+      this.lastTickers = t
+      for (const cb of this.tickersListeners) cb(t)
+    })
     // We drive reconnection ourselves (below) rather than withAutomaticReconnect, so the same loop
     // covers both an initial connect failure (hub not up yet) and a later drop.
     conn.onclose(() => {
@@ -114,6 +121,7 @@ export class SignalrSource {
       this.lastBarometerByQuote.clear()
       this.lastPrices = null
       this.lastMarketIndicators = null
+      this.lastTickers = null
       this.scheduleRetry()
     })
 
@@ -180,6 +188,12 @@ export class SignalrSource {
     return () => { this.marketIndicatorsListeners.delete(cb) }
   }
 
+  /** Fires on every engine-counters (Tickers) broadcast. Returns an unsubscribe fn. */
+  onTickers(cb: (t: Tickers) => void): () => void {
+    this.tickersListeners.add(cb)
+    return () => { this.tickersListeners.delete(cb) }
+  }
+
   /** Last-known barometer tip per quote (for snapshot-on-connect to a new UI client). */
   getBarometers(): Barometer[] {
     return [...this.lastBarometerByQuote.values()]
@@ -193,6 +207,11 @@ export class SignalrSource {
   /** Last-known market indicators, or null if none delivered yet / hub is down. */
   getLastMarketIndicators(): MarketIndicators | null {
     return this.lastMarketIndicators
+  }
+
+  /** Last-known engine counters, or null if none delivered yet / hub is down. */
+  getLastTickers(): Tickers | null {
+    return this.lastTickers
   }
 
   /** Pull the ~7h barometer graph for a quote+interval from the engine hub.
@@ -213,6 +232,7 @@ export class SignalrSource {
     this.barometerListeners.clear()
     this.pricesListeners.clear()
     this.marketIndicatorsListeners.clear()
+    this.tickersListeners.clear()
     const c = this.conn
     this.conn = null
     if (c) void c.stop().catch(() => { /* already down */ })

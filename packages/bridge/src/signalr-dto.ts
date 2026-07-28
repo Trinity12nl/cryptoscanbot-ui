@@ -1,4 +1,4 @@
-import type { Barometer, BarometerGraph, MarketIndicators, PriceMap } from '@csb/shared'
+import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, Tickers } from '@csb/shared'
 
 /**
  * Translation of the C# SignalR hub's wire DTOs (PascalCase, JSON `PropertyNamingPolicy = null`) to
@@ -41,6 +41,13 @@ interface MarketIndicatorsWire {
 interface BarometerPointWire {
   Date: string
   Value: number
+}
+
+interface TickersWire {
+  Date: string
+  KlineTickerCount: number
+  AnalyzeCount: number
+  SignalCount: number
 }
 
 interface BarometerGraphWire {
@@ -87,6 +94,15 @@ export function parseMarketIndicators(w: MarketIndicatorsWire): MarketIndicators
       value: i.Value,
       volume: i.Volume,
     })),
+  }
+}
+
+export function parseTickers(w: TickersWire): Tickers {
+  return {
+    dateMs: toMs(w.Date),
+    klineTickerCount: w.KlineTickerCount,
+    analyzeCount: w.AnalyzeCount,
+    signalCount: w.SignalCount,
   }
 }
 

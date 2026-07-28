@@ -189,6 +189,10 @@ export interface ScannerDataSource {
   subscribeMarketIndicators?(cb: (m: MarketIndicators) => void): () => void
   /** Last-known market indicators, or null if none delivered yet. */
   getMarketIndicators?(): MarketIndicators | null
+  /** Fires on every engine-counters (Tickers) broadcast. Returns an unsubscribe fn. */
+  subscribeTickers?(cb: (t: Tickers) => void): () => void
+  /** Last-known engine counters, or null if none delivered yet. */
+  getTickers?(): Tickers | null
   /** Pull the ~7h barometer graph for a quote+interval from the engine. Rejects if the hub is down. */
   getBarometerGraph?(quote: string, interval: string): Promise<BarometerGraph>
 
@@ -251,6 +255,19 @@ export interface MarketIndicators {
   indicators: MarketIndicator[]
 }
 
+/** Live engine counters for the scanner header's "Tickers" column (SignalR `ReceiveTickers`, ~2s).
+ * Phase B only. (Open positions are omitted - trading is out of scope.) */
+export interface Tickers {
+  /** Broadcast time, epoch ms UTC (null if unparseable). */
+  dateMs: number | null
+  /** Kline ticks received from the exchange stream. */
+  klineTickerCount: number
+  /** Symbol analyses the scanner has run this session. */
+  analyzeCount: number
+  /** Signals created this session. */
+  signalCount: number
+}
+
 /**
  * What the engine is CONFIGURED to scan, for the active exchange - read (never written) from the C#
  * engine's settings JSON. Drives the "smart" filters: options that are off here are shown dimmed so
@@ -303,3 +320,4 @@ export type BridgeEvent =
   | { type: 'settings'; settings: EngineSettings }
   | { type: 'barometer'; barometer: Barometer }
   | { type: 'marketIndicators'; indicators: MarketIndicators }
+  | { type: 'tickers'; tickers: Tickers }
