@@ -78,10 +78,34 @@ existing broadcast architecture; no fragile file-writing from the bridge, no eng
 - [ ] Bridge: `applySettings(raw)` on the SignalR source + `POST /api/settings` -> hub invoke.
 - [ ] Build + publish; verify via probe (send a harmless change, confirm the engine applies + re-broadcasts).
 
-### Phase 2 - settings UI shell (tabs) + first tab
-- [ ] Settings route/modal with the scanner's full tab list (General, Signal, Strategy, Indicators,
-      Trend, Quote, Lists, Telegram, Sound/Colors, Debug, **Trading**). Trading is a pass-through editor.
-- [ ] Reusable field controls (text/number/toggle/select/multiselect/list-editor) themed like the app.
+> **DESIGN FINDING (must handle before coding Phase 1).** `CommandShowConfiguration` does NOT replace
+> `GlobalData.Settings`; the config dialog binds to and mutates the EXISTING object **in place**, which
+> preserves runtime-only state that lives on the same objects - notably each `QuoteCoins` entry's
+> `SymbolList` (and `Status`). The change-detection `GetQuoteRelatedSettings()` reads that runtime state
+> (`quoteData.FetchCandles && quoteData.SymbolList.Count > 0`). So the `ApplySettings` handler must NOT
+> `JsonSerializer.Deserialize<SettingsBasic>(json)` and swap it into `GlobalData.Settings` - that would
+> zero every `SymbolList`, wrongly report all quotes as changed (forcing a full stop+reload every save),
+> and drop loaded candle data. Instead **merge the incoming JSON field-by-field onto the existing
+> `GlobalData.Settings`** (update scalars on `General`/`Trend`/`Trading`/`Signal`; for `QuoteCoins`
+> update `MinimalVolume`/`FetchCandles` on the existing entries by name, add/remove entries as needed,
+> keeping their runtime lists). Capture `previousExchange`/`previousActiveQuotes`/`previousExchangeName`
+> BEFORE the merge, then run the same steps 1-5 as the dialog. This is exactly why Phase 1 needs Inge's
+> live runtime verification and shouldn't be shipped on compile-check alone.
+
+### Phase 2a - settings VIEWER (read-only) - DONE (v0.9.0, branch feat/settings-viewer, stacked on Phase 0)
+- [x] Settings modal opened from a new sliders icon in the header, with the scanner's tab list
+      (General, Signal, Trend, Indicators, Quote, Lists, Trading, Debug), styled like the app.
+- [x] Generic read-only value renderer (`SettingsValue.tsx`): primitives as labelled rows, booleans as
+      On/Off pills, nested objects as indented sub-sections, arrays as chips - so it renders any part of
+      the raw settings without a hand-written field list per tab. General's Debug* + indicator blocks are
+      split into the Debug / Indicators tabs.
+- [x] Reads `GET /api/settings/raw` on open (works in Live AND Polling mode - the bridge reads the file).
+- [x] Verified: `pnpm -r typecheck` + `pnpm --filter @csb/web build` green; endpoint served through the
+      Vite proxy returns 200. **Visual layout not yet reviewed in a browser (extension was offline) -
+      Inge to eyeball it and steer styling before the PR is opened.**
+
+### Phase 2b - settings EDITOR (write-back) - needs Phase 1
+- [ ] Reusable field CONTROLS (text/number/toggle/select/multiselect/list-editor) themed like the app.
 - [ ] Implement **General** tab end-to-end (load -> edit -> Save -> ApplySettings -> confirm applied).
 - [ ] Dirty-tracking + Save/Cancel + "changed, restart-scope" hint (exchange/quote changes = heavier apply).
 
@@ -129,3 +153,17 @@ existing broadcast architecture; no fragile file-writing from the bridge, no eng
   BlackList*, ShowSymbolInformation]`; WS delivered `settingsRaw` on connect. Old bridge on :4399
   (pre-change) 404s the route, confirming it's genuinely new. No C# changes; read-only; safe for the
   pending Tickers test.
+
+### Phase 2a (v0.9.0) - read-only settings viewer (branch feat/settings-viewer, stacked on Phase 0)
+- New `packages/web/src/components/settings/SettingsValue.tsx` (generic read-only renderer: humanized
+  labels, On/Off pills, nested sub-sections, chip lists) + `SettingsViewer.tsx` (modal shell, left tab
+  rail matching the scanner's tabs, fetches `/api/settings/raw` on open, "View only" badge, footer note
+  that editing lands later). Hooked into `Header.tsx` via a new `SlidersHorizontal` button beside the
+  data-folder gear.
+- Tab mapping: General (minus Debug*/indicator blocks), Signal, Trend, Indicators (General's
+  Bb/Rsi/Stoch), Quote (QuoteCoins), Lists (white/black lists + ShowSymbolInformation), Trading
+  (pass-through), Debug (General's Debug* flags).
+- **Verified:** `pnpm -r typecheck` + `pnpm --filter @csb/web build` green; loaded through an isolated
+  bridge(:4501)+Vite(:5401) stack, `/api/settings/raw` 200 via the proxy. NOT visually reviewed in a
+  browser yet (extension offline overnight) - **PR intentionally NOT opened; awaiting Inge's eyeball +
+  styling steer.** Branch pushed for preview.
