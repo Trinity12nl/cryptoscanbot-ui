@@ -63,14 +63,19 @@ export function MarketHeader({ barometers, indicators, tickers, prices, symbols 
   const activeQuote = barometers.has(quote) ? quote : (quotes[0] ?? quote)
   const tip = barometers.get(activeQuote) ?? null
 
-  // Pull the graph on quote/interval change and refresh it every 60s (points are per-minute).
+  // While the scanner is still loading candles the graph isn't Ready yet; the barometer TIP (pushed
+  // over WS every ~2s) flips Ready long before the next graph pull would. So poll the graph fast while
+  // not-ready and let Ready itself be an effect dependency: the moment the tip reports Ready, this
+  // effect re-runs and pulls the finished graph immediately (instead of up to 60s later). Once ready,
+  // the per-minute points only need a 60s refresh.
+  const tipReady = tip?.ready ?? false
   useEffect(() => {
     let alive = true
     const load = () => { void fetchBarometerGraph(activeQuote, interval).then((g) => { if (alive) setGraph(g) }) }
     load()
-    const id = window.setInterval(load, 60_000)
+    const id = window.setInterval(load, tipReady ? 60_000 : 5_000)
     return () => { alive = false; window.clearInterval(id) }
-  }, [activeQuote, interval])
+  }, [activeQuote, interval, tipReady])
 
   // Colour indicator values by their move since the previous broadcast (like the scanner's red/green).
   const prevIndicators = useRef<Map<string, number>>(new Map())
