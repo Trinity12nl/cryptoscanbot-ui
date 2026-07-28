@@ -110,6 +110,7 @@ export function startBridge(
           }
         }
         if (url.pathname === '/api/settings') return json(res, 200, settingsSource?.get() ?? null)
+        if (url.pathname === '/api/settings/raw') return json(res, 200, settingsSource?.getRaw() ?? null)
         if (serveStatic(res, url.pathname)) return
         json(res, 404, { error: 'not found' })
       } catch (err: unknown) {
@@ -145,6 +146,8 @@ export function startBridge(
     send(ws, { type: 'prices', prices: currentPrices() })
     const settings = settingsSource?.get()
     if (settings) send(ws, { type: 'settings', settings })
+    const settingsRaw = settingsSource?.getRaw()
+    if (settingsRaw) send(ws, { type: 'settingsRaw', settingsRaw })
     // Phase B snapshot: replay the last-known engine broadcasts so a fresh tab is populated at once
     // (the hub's own snapshot-on-connect reached only the bridge, not this browser client).
     for (const barometer of source.getBarometers?.() ?? []) send(ws, { type: 'barometer', barometer })
@@ -182,6 +185,10 @@ export function startBridge(
 
   const unsubscribeSettings = settingsSource?.subscribe((settings) => {
     const ev: BridgeEvent = { type: 'settings', settings }
+    for (const ws of wss.clients) send(ws, ev)
+  })
+  const unsubscribeSettingsRaw = settingsSource?.subscribeRaw((settingsRaw) => {
+    const ev: BridgeEvent = { type: 'settingsRaw', settingsRaw }
     for (const ws of wss.clients) send(ws, ev)
   })
 
@@ -227,6 +234,7 @@ export function startBridge(
       unsubscribeMarketIndicators?.()
       unsubscribeTickers?.()
       unsubscribeSettings?.()
+      unsubscribeSettingsRaw?.()
       // Force-close existing sockets. `wss.close()`/`http.close()` only stop ACCEPTING new
       // connections - they leave current ones alive. On an in-process restart (data-folder or SignalR
       // toggle) that would strand the UI's WebSocket on the OLD bridge instance (stale info/data)

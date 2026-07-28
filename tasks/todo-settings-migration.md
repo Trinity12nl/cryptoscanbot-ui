@@ -59,11 +59,15 @@ existing broadcast architecture; no fragile file-writing from the bridge, no eng
 
 ## Plan (phased - one PR per phase)
 
-### Phase 0 - read the full settings (foundation)
-- [ ] Bridge: add `getRawSettings()` / `GET /api/settings/raw` returning the parsed
-      `CryptoScanBot-settings.json` verbatim (keep the existing `EngineSettings` projection for filters).
-- [ ] Bridge: broadcast a `settingsRaw` change when the file mtime changes (already watched).
-- [ ] shared: a permissive `RawSettings = Record<string, unknown>` type (no full mirror).
+### Phase 0 - read the full settings (foundation) - DONE (v0.8.9)
+- [x] Bridge: add `getRaw()` / `GET /api/settings/raw` returning the parsed
+      `CryptoScanBot-settings.json` verbatim (kept the existing `EngineSettings` projection for filters).
+- [x] Bridge: broadcast a `settingsRaw` change when the file mtime changes (reuses the existing 10s
+      mtime poll; `subscribeRaw` fires off the same read as the normalized `subscribe`), + snapshot on
+      WS connect.
+- [x] shared: a permissive `RawSettings = Record<string, unknown>` type + `settingsRaw` BridgeEvent.
+- [x] web: `fetchRawSettings()` in lib/api.ts (used by the settings page in Phase 2).
+- [x] probe:bridge prints the raw settings groups (REST + WS) for verification.
 
 ### Phase 1 - write-back plumbing (C#, local-only avalonia branch)
 - [ ] Core `SignalRService`: `ApplySettingsHandler` delegate + `ApplySettings` invoked from the hub.
@@ -109,4 +113,19 @@ existing broadcast architecture; no fragile file-writing from the bridge, no eng
    (not a pixel-match) - consistent with the market header we just built.
 
 ## Review
-(fill in per phase)
+
+### Phase 0 (v0.8.9) - raw settings through the bridge
+- `shared`: added `RawSettings = Record<string, unknown>` (the verbatim settings object the editor
+  works on) + a `settingsRaw` variant on `BridgeEvent`.
+- `bridge/settings-source.ts`: added a cached verbatim parse (`refresh()` now feeds both the normalized
+  filter view and the raw object off one file read), `getRaw()`, and `subscribeRaw()`. Renamed the
+  private projection interface `RawSettings` -> `SettingsShape` to free the name for the shared type.
+- `bridge/server.ts`: `GET /api/settings/raw`, a `settingsRaw` snapshot on WS connect, and a broadcast
+  when the file changes; cleanup wired into `close()`.
+- `web/lib/api.ts`: `fetchRawSettings()`.
+- `probe-bridge.mjs`: prints the raw settings groups over REST + WS.
+- **Verified end-to-end** against a fresh bridge on :4501 reading the live oracle settings file:
+  `/api/settings/raw` -> 200 with groups `[General, Signal, Trend, Trading, QuoteCoins, WhiteList*,
+  BlackList*, ShowSymbolInformation]`; WS delivered `settingsRaw` on connect. Old bridge on :4399
+  (pre-change) 404s the route, confirming it's genuinely new. No C# changes; read-only; safe for the
+  pending Tickers test.

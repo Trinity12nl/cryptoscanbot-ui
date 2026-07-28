@@ -1,4 +1,4 @@
-import type { BarometerGraph, BridgeEvent, EngineInfo, EngineSettings, PriceMap, Signal, SymbolRow } from '@csb/shared'
+import type { BarometerGraph, BridgeEvent, EngineInfo, EngineSettings, PriceMap, RawSettings, Signal, SymbolRow } from '@csb/shared'
 
 /**
  * The web app's ONLY dependency on the backend: the local bridge (same origin in dev via Vite proxy,
@@ -36,6 +36,14 @@ export async function fetchSettings(): Promise<EngineSettings | null> {
   const r = await fetch('/api/settings')
   if (!r.ok) throw new Error(`settings ${r.status}`)
   return r.json() as Promise<EngineSettings | null>
+}
+
+/** The engine's full settings JSON, verbatim (the source of truth for the settings editor). null when
+ * not readable. Everything the editor doesn't render is preserved and passed back untouched on save. */
+export async function fetchRawSettings(): Promise<RawSettings | null> {
+  const r = await fetch('/api/settings/raw')
+  if (!r.ok) throw new Error(`settings/raw ${r.status}`)
+  return r.json() as Promise<RawSettings | null>
 }
 
 /** Pull the ~7h barometer graph for a quote+interval (Phase B / SignalR only). Returns null when the

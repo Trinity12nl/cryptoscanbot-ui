@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.9 - 2026-07-28
+
+### TECH
+- **Bridge exposes the engine's full settings (foundation for the settings editor).** New `GET /api/settings/raw` returns the scanner's `CryptoScanBot-settings.json` verbatim (the whole `SettingsBasic` object - General, Signal, Trend, Trading, QuoteCoins, lists, ...), and a new WS `settingsRaw` event replays it on connect and pushes it when the file changes on disk. This is the read-only groundwork the upcoming settings page edits and writes back; the existing `/api/settings` filter projection is unchanged. No visible UI yet. (Phase 0 of the settings migration.)
+
 ## v0.8.8 - 2026-07-28
 
 ### NEW
