@@ -36,6 +36,10 @@ async function restChecks() {
     `signalrConnected=${info.body?.signalrConnected} engineSignalrEnabled=${info.body?.engineSignalrEnabled}`,
   )
 
+  const raw = await getJson('/api/settings/raw')
+  const groups = raw.body ? Object.keys(raw.body).join(', ') : ''
+  console.log(`[${ts()}] REST /api/settings/raw ${raw.status}  groups=[${groups}]`)
+
   const prices = await getJson('/api/prices')
   const n = prices.body ? Object.keys(prices.body).length : 0
   const sample = prices.body
@@ -94,6 +98,9 @@ function handleEvent(ev) {
     }
     case 'settings':
       console.log(`[${ts()}] WS settings    activeExchange=${ev.settings?.activeExchange}`)
+      break
+    case 'settingsRaw':
+      console.log(`[${ts()}] WS settingsRaw groups=[${Object.keys(ev.settingsRaw ?? {}).join(', ')}]`)
       break
     case 'signals':
       console.log(`[${ts()}] WS signals     ${ev.signals?.length ?? 0} row(s)`)

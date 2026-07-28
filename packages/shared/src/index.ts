@@ -294,6 +294,15 @@ export interface EngineSettings {
   configSignature: string
 }
 
+/**
+ * The engine's settings JSON (`CryptoScanBot-settings.json`) parsed VERBATIM - the whole PascalCase
+ * object as the C# `SettingsBasic` writes it, no projection. This is the contract the settings editor
+ * works on: it renders the fields it knows and passes everything else (incl. the Trading block) back
+ * untouched on write, so we never rebuild the full model in TS. `EngineSettings` above is the small
+ * derived view that drives the filters; this is the raw source of truth for the settings page.
+ */
+export type RawSettings = Record<string, unknown>
+
 /** When a signal goes stale, epoch ms - or null if freshness is off or the interval is unknown. */
 export function signalExpiryMs(
   openDateMs: number | null, interval: string, removeAfterCandles: number,
@@ -318,6 +327,7 @@ export type BridgeEvent =
   | { type: 'info'; info: EngineInfo }
   | { type: 'prices'; prices: PriceMap }
   | { type: 'settings'; settings: EngineSettings }
+  | { type: 'settingsRaw'; settingsRaw: RawSettings }
   | { type: 'barometer'; barometer: Barometer }
   | { type: 'marketIndicators'; indicators: MarketIndicators }
   | { type: 'tickers'; tickers: Tickers }

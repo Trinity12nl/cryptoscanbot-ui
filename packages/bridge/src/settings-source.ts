@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { EngineSettings } from '@csb/shared'
+import type { EngineSettings, RawSettings } from '@csb/shared'
 import { strategyNameFromSettingsKey } from '@csb/shared'
 import { resolveDbPath, type DataLocation } from './sqlite-source.js'
 
@@ -22,7 +22,8 @@ export function resolveSettingsPath(opts: DataLocation = {}): string {
 }
 
 interface SideConfig { Strategy?: string[]; Interval?: string[] }
-interface RawSettings {
+/** The narrow slice of the settings file that `normalize` reads (the rest is passed through raw). */
+interface SettingsShape {
   General?: {
     ActivateExchangeName?: string; RemoveSignalAfterxCandles?: number
     SignalREnabled?: boolean; SignalRPort?: number
@@ -31,7 +32,7 @@ interface RawSettings {
   QuoteCoins?: Record<string, { MinimalVolume?: number; FetchCandles?: boolean }>
 }
 
-function normalize(raw: RawSettings, lastChangedMs: number): EngineSettings {
+function normalize(raw: SettingsShape, lastChangedMs: number): EngineSettings {
   const long = raw.Signal?.Long ?? {}
   const short = raw.Signal?.Short ?? {}
 
@@ -76,24 +77,33 @@ function normalize(raw: RawSettings, lastChangedMs: number): EngineSettings {
 export class SettingsSource {
   private readonly path: string
   private cached: EngineSettings | null = null
+  private cachedRaw: RawSettings | null = null
   private mtimeMs = 0
   private timer: NodeJS.Timeout | null = null
   private readonly listeners = new Set<(s: EngineSettings) => void>()
+  private readonly rawListeners = new Set<(s: RawSettings) => void>()
 
   constructor(opts: DataLocation = {}) {
     this.path = resolveSettingsPath(opts)
   }
 
-  /** Current settings, re-reading the file only when it has changed on disk. */
+  /** Re-read + re-parse the file when its mtime changed, refreshing both the normalized view and the
+   * verbatim raw object. Returns true when a fresh parse happened. */
+  private refresh(): boolean {
+    if (!existsSync(this.path)) return false
+    const mtime = statSync(this.path).mtimeMs
+    if (mtime === this.mtimeMs && this.cached != null) return false
+    const raw = JSON.parse(readFileSync(this.path, 'utf8')) as RawSettings
+    this.cachedRaw = raw
+    this.cached = normalize(raw as SettingsShape, mtime)
+    this.mtimeMs = mtime
+    return true
+  }
+
+  /** Current settings (normalized filter view), re-reading the file only when it changed on disk. */
   get(): EngineSettings | null {
     try {
-      if (!existsSync(this.path)) return null
-      const mtime = statSync(this.path).mtimeMs
-      if (mtime !== this.mtimeMs || this.cached == null) {
-        const raw = JSON.parse(readFileSync(this.path, 'utf8')) as RawSettings
-        this.cached = normalize(raw, mtime)
-        this.mtimeMs = mtime
-      }
+      this.refresh()
       return this.cached
     } catch (err: unknown) {
       // eslint-disable-next-line no-console
@@ -102,19 +112,33 @@ export class SettingsSource {
     }
   }
 
+  /** The engine's settings JSON parsed VERBATIM (PascalCase, whole object) - the source of truth the
+   * settings editor works on. Re-read only when the file changed on disk. Null if missing/unreadable. */
+  getRaw(): RawSettings | null {
+    try {
+      this.refresh()
+      return this.cachedRaw
+    } catch (err: unknown) {
+      // eslint-disable-next-line no-console
+      console.warn(`[settings] raw read failed: ${err instanceof Error ? err.message : 'error'}`)
+      return this.cachedRaw
+    }
+  }
+
   /** The engine's OWN SignalR config, read straight from its settings JSON (the half of the live link
    * we don't control). enabled=null when the file is missing/unreadable. Read-only. */
   getEngineSignalr(): { enabled: boolean | null; port: number | null } {
     try {
       if (!existsSync(this.path)) return { enabled: null, port: null }
-      const raw = JSON.parse(readFileSync(this.path, 'utf8')) as RawSettings
+      const raw = JSON.parse(readFileSync(this.path, 'utf8')) as SettingsShape
       return { enabled: raw.General?.SignalREnabled ?? null, port: raw.General?.SignalRPort ?? null }
     } catch {
       return { enabled: null, port: null }
     }
   }
 
-  /** Poll the file mtime and notify listeners when the engine's settings change. */
+  /** Poll the file mtime and notify listeners when the engine's settings change. Fires both the
+   * normalized (filter) listeners and the raw (settings-editor) listeners off the same read. */
   start(): void {
     if (this.timer) return
     let last = this.mtimeMs
@@ -123,6 +147,8 @@ export class SettingsSource {
       if (s && this.mtimeMs !== last) {
         last = this.mtimeMs
         for (const cb of this.listeners) cb(s)
+        const raw = this.cachedRaw
+        if (raw) for (const cb of this.rawListeners) cb(raw)
       }
     }, 10_000)
   }
@@ -132,8 +158,15 @@ export class SettingsSource {
     return () => { this.listeners.delete(cb) }
   }
 
+  /** Notified with the verbatim raw settings object whenever the file changes on disk. */
+  subscribeRaw(cb: (s: RawSettings) => void): () => void {
+    this.rawListeners.add(cb)
+    return () => { this.rawListeners.delete(cb) }
+  }
+
   close(): void {
     if (this.timer) { clearInterval(this.timer); this.timer = null }
     this.listeners.clear()
+    this.rawListeners.clear()
   }
 }
