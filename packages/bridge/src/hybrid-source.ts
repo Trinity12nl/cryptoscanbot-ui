@@ -1,6 +1,6 @@
 import type {
   Barometer, BarometerGraph, EngineInfo, MarketIndicators, PriceMap, ScannerDataSource, Signal,
-  SymbolRow,
+  SymbolRow, Tickers,
 } from '@csb/shared'
 import type { SqliteDataSource } from './sqlite-source.js'
 import type { SignalrSource } from './signalr-source.js'
@@ -99,6 +99,14 @@ export class HybridDataSource implements ScannerDataSource {
 
   getMarketIndicators(): MarketIndicators | null {
     return this.signalr.getLastMarketIndicators()
+  }
+
+  subscribeTickers(cb: (t: Tickers) => void): () => void {
+    return this.signalr.onTickers(cb)
+  }
+
+  getTickers(): Tickers | null {
+    return this.signalr.getLastTickers()
   }
 
   getBarometerGraph(quote: string, interval: string): Promise<BarometerGraph> {

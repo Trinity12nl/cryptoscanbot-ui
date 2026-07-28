@@ -150,6 +150,8 @@ export function startBridge(
     for (const barometer of source.getBarometers?.() ?? []) send(ws, { type: 'barometer', barometer })
     const indicators = source.getMarketIndicators?.()
     if (indicators) send(ws, { type: 'marketIndicators', indicators })
+    const tickers = source.getTickers?.()
+    if (tickers) send(ws, { type: 'tickers', tickers })
   })
 
   const unsubscribe = source.subscribeSignals((signals) => {
@@ -173,6 +175,9 @@ export function startBridge(
   })
   const unsubscribeMarketIndicators = source.subscribeMarketIndicators?.((indicators) => {
     broadcast({ type: 'marketIndicators', indicators })
+  })
+  const unsubscribeTickers = source.subscribeTickers?.((tickers) => {
+    broadcast({ type: 'tickers', tickers })
   })
 
   const unsubscribeSettings = settingsSource?.subscribe((settings) => {
@@ -220,6 +225,7 @@ export function startBridge(
       unsubscribeSignalrPrices?.()
       unsubscribeBarometer?.()
       unsubscribeMarketIndicators?.()
+      unsubscribeTickers?.()
       unsubscribeSettings?.()
       // Force-close existing sockets. `wss.close()`/`http.close()` only stop ACCEPTING new
       // connections - they leave current ones alive. On an in-process restart (data-folder or SignalR

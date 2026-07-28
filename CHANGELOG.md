@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.8 - 2026-07-28
+
+### NEW
+- **Live Tickers column.** The scanner-header "Tickers" column now shows the engine's live counters - Kline Ticker Count, Scanner analyze Count, and Scanner signal Count - streamed over SignalR (~every 2s) instead of placeholders. (Open positions stays blank: trading is out of scope.)
+
 ## v0.8.7 - 2026-07-28
 
 ### NEW

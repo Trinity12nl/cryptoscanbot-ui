@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, SymbolRow } from '@csb/shared'
+import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, SymbolRow, Tickers } from '@csb/shared'
 import { fetchBarometerGraph } from '../lib/api'
 import { formatPrice, formatCompact } from '../lib/format'
 import { BarometerPanel } from './BarometerPanel'
@@ -14,11 +14,20 @@ import { BarometerPanel } from './BarometerPanel'
  */
 
 const PRICE_BASES = ['BTC', 'ETH', 'XRP', 'SOL', 'ADA']
-const TICKER_LABELS = ['Kline Ticker Count', 'Scanner analyze Count', 'Scanner signal Count', 'Open positions']
+
+// Tickers column rows. The first three are live engine counters; Open positions stays a placeholder
+// (trading is out of scope for this build).
+const TICKER_ROWS: { label: string; value: (t: Tickers | null) => number | null }[] = [
+  { label: 'Kline Ticker Count', value: (t) => t?.klineTickerCount ?? null },
+  { label: 'Scanner analyze Count', value: (t) => t?.analyzeCount ?? null },
+  { label: 'Scanner signal Count', value: (t) => t?.signalCount ?? null },
+  { label: 'Open positions', value: () => null },
+]
 
 interface Props {
   barometers: Map<string, Barometer>
   indicators: MarketIndicators | null
+  tickers: Tickers | null
   prices: PriceMap
   symbols: SymbolRow[]
 }
@@ -44,7 +53,7 @@ const ColTitle = ({ children }: { children: string }) => (
   <span className="font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{children}</span>
 )
 
-export function MarketHeader({ barometers, indicators, prices, symbols }: Props) {
+export function MarketHeader({ barometers, indicators, tickers, prices, symbols }: Props) {
   const quotes = useMemo(() => [...barometers.keys()].sort(), [barometers])
   const [quote, setQuote] = useState('USDT')
   const [interval, setInterval] = useState('1h')
@@ -132,16 +141,21 @@ export function MarketHeader({ barometers, indicators, prices, symbols }: Props)
 
       <Divider />
 
-      {/* Tickers - placeholders until the scanner broadcasts these counters (C# follow-up). */}
-      <div className="flex shrink-0 flex-col gap-1" title="Engine counters - not broadcast yet (coming in a scanner update)">
+      {/* Tickers - live engine counters (Open positions stays '-': trading is out of scope). */}
+      <div className="flex shrink-0 flex-col gap-1">
         <ColTitle>Tickers</ColTitle>
         <div className="grid grid-cols-[auto_auto] gap-x-6 gap-y-0.5">
-          {TICKER_LABELS.map((label) => (
-            <div key={label} className="contents">
-              <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
-              <span className="text-right font-mono text-zinc-400 dark:text-zinc-600">-</span>
-            </div>
-          ))}
+          {TICKER_ROWS.map(({ label, value }) => {
+            const v = value(tickers)
+            return (
+              <div key={label} className="contents">
+                <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
+                <span className={`text-right font-mono ${v != null ? 'font-semibold text-zinc-800 dark:text-zinc-100' : 'text-zinc-400 dark:text-zinc-600'}`}>
+                  {v != null ? v.toLocaleString('en-US') : '-'}
+                </span>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

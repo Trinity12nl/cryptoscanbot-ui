@@ -87,6 +87,11 @@ function handleEvent(ev) {
       console.log(`[${ts()}] WS indicators  ${items}`)
       break
     }
+    case 'tickers': {
+      const t = ev.tickers
+      console.log(`[${ts()}] WS tickers     kline=${t.klineTickerCount} analyze=${t.analyzeCount} signals=${t.signalCount}`)
+      break
+    }
     case 'settings':
       console.log(`[${ts()}] WS settings    activeExchange=${ev.settings?.activeExchange}`)
       break

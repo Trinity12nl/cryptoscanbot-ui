@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Barometer, EngineInfo, EngineSettings, MarketIndicators, PriceMap, Signal, SymbolRow } from '@csb/shared'
+import type { Barometer, EngineInfo, EngineSettings, MarketIndicators, PriceMap, Signal, SymbolRow, Tickers } from '@csb/shared'
 import { INTERVAL_SEC } from '@csb/shared'
 import { connectBridge, fetchInfo, fetchPrices, fetchSettings, fetchSignals, fetchSymbols } from './lib/api.ts'
 import { PricesContext } from './context/PricesContext.tsx'
@@ -53,6 +53,7 @@ export function App() {
   const [prices, setPrices] = useState<PriceMap>({})
   const [barometers, setBarometers] = useState<Map<string, Barometer>>(new Map())
   const [indicators, setIndicators] = useState<MarketIndicators | null>(null)
+  const [tickers, setTickers] = useState<Tickers | null>(null)
   const [settings, setSettings] = useState<EngineSettings | null>(null)
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [error, setError] = useState<string | null>(null)
@@ -96,6 +97,7 @@ export function App() {
       if (ev.type === 'prices') setPrices(ev.prices)
       if (ev.type === 'barometer') setBarometers((prev) => new Map(prev).set(ev.barometer.quote, ev.barometer))
       if (ev.type === 'marketIndicators') setIndicators(ev.indicators)
+      if (ev.type === 'tickers') setTickers(ev.tickers)
       if (ev.type === 'settings') {
         // Flag the banner only when the scan-relevant config actually changed (signature), not on
         // the engine's bookkeeping rewrites (which bump the file mtime) or a WS reconnect.
@@ -240,7 +242,7 @@ export function App() {
     <div className="flex h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <Header info={info} live={live} shown={visible.length} today={todayCount} />
       {info?.signalrConnected && (
-        <MarketHeader barometers={barometers} indicators={indicators} prices={prices} symbols={symbols} />
+        <MarketHeader barometers={barometers} indicators={indicators} tickers={tickers} prices={prices} symbols={symbols} />
       )}
       <NoDataBanner info={info} empty={emptyDb} />
       {error && (
