@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.10 - 2026-07-28
+
+### FIX
+- **Barometer graph no longer appears late after loading.** When the scanner finished loading candles, the header's barometer kept showing the pulsating loading state for up to a minute before the real graph appeared, because the graph was only re-pulled every 60s. It now polls every ~5s while the scanner is still loading and pulls the finished graph the instant the barometer reports Ready, so the graph shows within a few seconds instead of "appearing by itself" later.
+
 ## v0.8.9 - 2026-07-28
 
 ### TECH
