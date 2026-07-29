@@ -90,7 +90,7 @@ interface SignalJoinRow {
   BollingerBandsPercentage: string | null; Last24HoursChange: string | null
   LastXDaysEffective: string | null; Rsi: string | null; StochOscillator: string | null
   StochSignal: string | null; MacdHistogram: string | null; BarcodePercentage: string | null
-  EventText: string | null; OpenDate: string | null
+  EventText: string | null; OpenDate: string | null; CloseDate: string | null
   Barometer15m: string | null; Barometer30m: string | null; Barometer1h: string | null
   Barometer4h: string | null; Barometer1d: string | null
   Trend15m: number | null; Trend30m: number | null; Trend1h: number | null
@@ -140,6 +140,7 @@ function toSignal(r: SignalJoinRow): Signal {
     barcode: num(r.BarcodePercentage),
     eventText: r.EventText ?? '',
     openDateMs: dateMs(r.OpenDate),
+    closeDateMs: dateMs(r.CloseDate),
     barometer: toBarometer(r),
     trend: toTrend(r),
   }
@@ -151,7 +152,7 @@ const SIGNAL_SELECT = `
          s.TrendPercentagePrimary, s.TrendPercentageSecondary, s.BollingerBandsPercentage,
          s.Last24HoursChange, s.LastXDaysEffective, s.Rsi, s.StochOscillator, s.StochSignal,
          s.MacdHistogram, s.BarcodePercentage,
-         s.EventText, s.OpenDate,
+         s.EventText, s.OpenDate, s.CloseDate,
          s.Barometer15m, s.Barometer30m, s.Barometer1h, s.Barometer4h, s.Barometer1d,
          s.Trend15m, s.Trend30m, s.Trend1h, s.Trend4h, s.Trend1d
   FROM Signal s

@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.14 - 2026-07-30
+
+### FIX
+- **Signal candle date now shows the real close time.** The Candle date column fabricated the close as open + the full interval, so an OrderBlock 1h signal read e.g. `00:23 - 01:23`. But OrderBlock analyses the 1h block and fires on the 1m trigger candle, so its stored `CloseDate` is ~1 minute after open. We now read and display the engine's actual `CloseDate` (like the scanner: `00:23 - 00:24`) instead of computing it. The Interval column still shows the strategy's timeframe (`1h`), matching the scanner.
+
 ## v0.8.13 - 2026-07-29
 
 ### IMPROVED

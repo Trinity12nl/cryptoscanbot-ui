@@ -47,15 +47,17 @@ export function formatCount(n: number | null | undefined): string {
   return n.toLocaleString(LOCALE, { maximumFractionDigits: 0 })
 }
 
-// Candle date range, matching the C# signal grid notation:
-// "2026-07-19 00:01 - 00:02" - full date + candle open time, then the candle
-// close time only (open + interval duration).
-export function formatCandleRange(open: string | Date | null | undefined, durationSec: number): string {
+// Signal candle date range, matching the C# signal grid (SignalViewModel.DateText):
+// "2026-07-30 00:23 - 00:24" - full local date + open time, then the stored close time only.
+// Uses the signal's real CloseDate (NOT open + interval): OrderBlock signals analyse the 1h block but
+// fire on the 1m trigger candle, so their CloseDate is ~1 minute after open even on a 1h signal.
+export function formatCandleRange(open: string | Date | null | undefined, close: string | Date | null | undefined): string {
   if (open == null) return '-'
   const start = typeof open === 'string' ? new Date(open) : open
-  const end = new Date(start.getTime() + durationSec * 1000)
   const date = start.toLocaleDateString('en-CA') // YYYY-MM-DD
   const clock = (d: Date) => d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  if (close == null) return `${date} ${clock(start)}`
+  const end = typeof close === 'string' ? new Date(close) : close
   return `${date} ${clock(start)} - ${clock(end)}`
 }
 
