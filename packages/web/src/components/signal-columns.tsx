@@ -1,7 +1,7 @@
 import { createColumnHelper, type RowData, type VisibilityState } from '@tanstack/react-table'
 import { Zap } from 'lucide-react'
 import {
-  INTERVAL_SEC, isTrendDivergent, signalChangePct,
+  isTrendDivergent, signalChangePct,
   type Signal, type SignalBarometer,
 } from '@csb/shared'
 import { usePrices } from '../context/PricesContext'
@@ -91,7 +91,7 @@ export function buildSignalColumns() {
         const s = ctx.row.original
         const ms = ctx.getValue()
         if (ms == null) return <span className="text-zinc-400 dark:text-zinc-500">-</span>
-        return formatCandleRange(new Date(ms), INTERVAL_SEC[s.interval] ?? 0)
+        return formatCandleRange(new Date(ms), s.closeDateMs != null ? new Date(s.closeDateMs) : null)
       },
     }),
     col.accessor('symbol', { id: 'symbol', enableHiding: false, meta: { label: 'Symbol' }, header: 'Symbol', cell: (i) => i.getValue() }),

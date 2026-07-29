@@ -88,8 +88,12 @@ export interface Signal {
   /** "Barcode" / flatness metric. */
   barcode: number | null
   eventText: string
-  /** Signal open time, epoch ms UTC. */
+  /** Signal open time, epoch ms UTC (C# Signal.OpenDate). */
   openDateMs: number | null
+  /** Signal candle close time, epoch ms UTC (C# Signal.CloseDate). NOTE this is the trigger candle's
+   * close, which for OrderBlock is ~1 minute after open even on a 1h signal (it analyses the 1h block
+   * but fires on the 1m candle) - so always display this, never open + interval. */
+  closeDateMs: number | null
   /** Per-timeframe barometer reading at signal time (C# Signal.Barometer15m..1d). Each may be null. */
   barometer?: SignalBarometer | null
   /** Per-timeframe market-trend at signal time (C# Signal.Trend15m..1d: up/down, Unknown -> null). */
