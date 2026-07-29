@@ -205,8 +205,8 @@ export interface ScannerDataSource {
 export type PriceMap = Record<string, number>
 
 /**
- * Live per-quote barometer tip from the engine (SignalR `ReceiveBarometer`, ~1/min). Each timeframe
- * reading is the current barometer % or null while still loading. Phase B only.
+ * Live per-quote barometer tip from the engine (SignalR `ReceiveDashboardUpdate`, ~1/min). Each
+ * timeframe reading is the current barometer % or null while still loading. Phase B only.
  */
 export interface Barometer {
   exchange: string
@@ -239,7 +239,7 @@ export interface BarometerGraph {
   points: BarometerPoint[]
 }
 
-/** One market indicator (SignalR `ReceiveMarketIndicators`): a TradingView value or Fear & Greed. */
+/** One market indicator (SignalR `ReceiveDashboardUpdate`): a TradingView value or Fear & Greed. */
 export interface MarketIndicator {
   name: string
   value: number
@@ -255,8 +255,8 @@ export interface MarketIndicators {
   indicators: MarketIndicator[]
 }
 
-/** Live engine counters for the scanner header's "Tickers" column (SignalR `ReceiveTickers`, ~2s).
- * Phase B only. (Open positions are omitted - trading is out of scope.) */
+/** Live engine counters for the scanner header's "Tickers" column (SignalR `ReceiveDashboardUpdate`,
+ * ~1/min). Phase B only. (Open positions are omitted - trading is out of scope.) */
 export interface Tickers {
   /** Broadcast time, epoch ms UTC (null if unparseable). */
   dateMs: number | null

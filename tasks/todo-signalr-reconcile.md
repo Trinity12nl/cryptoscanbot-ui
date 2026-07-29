@@ -62,23 +62,57 @@ interval)`** - so that half already lines up.
 - [ ] **Drop our C# branch.** Confirm `feat/signalr-barometer-prices` (local, unpushed) is fully
       superseded by `upstream/avalonia@0adb969f`; delete it after the bridge cutover is verified.
       (Keep `fix/mac-build` - separate concern.)
-- [ ] **`signalr-dto.ts`:** add wire types for his DTOs (`DashboardUpdateWire`, `BarometerValuesWire`,
-      `MarketIndicatorWire` his shape, `SymbolPriceWire`, `TickerStatsWire`) + a
-      `parseDashboardUpdate(w)` that returns `{ barometer, prices, marketIndicators, tickers,
-      latestPoint }` using the mapping table above. Adjust `parseBarometerGraph` for `Point.Time` and
-      absent Ready/Progress.
-- [ ] **`signalr-source.ts`:** replace the four `conn.on('Receive*')` handlers with a single
-      `conn.on('ReceiveDashboardUpdate', ...)` that fans the parsed pieces out to the existing
-      `onBarometer/onPrices/onMarketIndicators/onTickers` listeners (keep the internal listener seams
-      so `hybrid-source.ts` and `server.ts` are untouched). Keep the `GetBarometerGraph` invoke.
-- [ ] **Ready/Progress fallback** until Marius adds them: treat pushed data as `ready=true`
-      (the engine only pushes once `ApplicationStatus == Running`), `progress=''`. Verify the header's
-      loading state still behaves (no permanent skeleton).
-- [ ] **Verify end-to-end** against Marius's build: start the scanner (SignalR on) -> bridge connects
-      -> `ReceiveDashboardUpdate` arrives -> barometer strip, prices, indicators, tickers all populate;
-      `GET /api/barometer-graph` returns points. Paste a screenshot / log line.
+- [x] **`signalr-dto.ts`:** added wire types for his DTOs (`DashboardUpdateWire`, `BarometerValuesWire`,
+      his `MarketIndicatorWire`, `TickerStatsWire`, `BarometerGraphWire`) + `parseDashboardUpdate(w)`
+      returning `{ barometer, marketIndicators, tickers }` per the mapping table. `parseBarometerGraph`
+      now reads `Point.Time` and defaults Ready/Progress. **Deviation: prices are NOT parsed** - see the
+      prices note below.
+- [x] **`signalr-source.ts`:** replaced the four `conn.on('Receive*')` handlers with a single
+      `conn.on('ReceiveDashboardUpdate', ...)` fanning the parsed pieces out to the existing
+      `barometer/marketIndicators/tickers` listener seams (hybrid-source.ts + server.ts untouched). Kept
+      the `GetBarometerGraph` invoke and the ReceiveSignal handler. Price seam kept but inert (documented).
+- [x] **Ready/Progress fallback** until Marius adds them: pushed data is `ready=true` (the engine only
+      pushes once `ApplicationStatus == Running`, verified at `SignalRService.OnDashboardTimerTick`),
+      `progress=''`.
+- [ ] **Verify end-to-end** against Marius's build (`publish-marius`): start the scanner (SignalR on) ->
+      bridge connects -> `ReceiveDashboardUpdate` arrives -> barometer strip, indicators, tickers all
+      populate; prices show (from the ccxt ticker); `GET /api/barometer-graph` returns points. Paste a
+      screenshot / log line. **PENDING - needs Inge to run the binary.**
 - [ ] **CHANGELOG** (TECH): bridge now consumes the engine's official `ReceiveDashboardUpdate` +
       `GetBarometerGraph` API (Marius' implementation) instead of our interim broadcasts.
+
+## NEW GAP found during cutover (#5): SymbolPrices is info-bar-only, not the full price map
+
+His `DashboardDataCollector.GetSymbolPrices` iterates only `Settings.ShowSymbolInformation` (a handful
+of reference symbols: BTC/ETH/XRP/SOL/ADA-ish) - it is the *info-bar* price list, NOT the full
+per-symbol map our OLD `PriceSnapshotDto` carried (which priced every loaded symbol). Our web shares one
+`PriceMap` (PricesContext) between the header's 5-symbol "Crypto Prices" column AND the signals-table
+"Change" column (`signal-columns.tsx` reads `prices[signal.symbol]` for every row). And `server.ts`
+makes SignalR prices *replace* the ccxt ticker the moment they arrive (`signalrPricesLive=true` ->
+`ticker.setEnabled(false)`). So routing his sparse `SymbolPrices` into the price seam would blank the
+Change column for every symbol except the ~5 reference ones. **Decision: don't route his SymbolPrices;
+keep the ccxt ticker as the price source (it already covers the header's 5 symbols and every scanned
+symbol).** Regression-free, no server/hybrid change. To raise with Marius: if we want engine-sourced
+prices for the whole grid later, we'd need a comprehensive price DTO (all loaded symbols) or keep prices
+on ccxt permanently (fine for our read-only UI).
+
+## Review (2026-07-29 - code done, live-verify pending)
+
+- Fetched + fast-forwarded local `avalonia` to `0adb969f`, published his build to
+  `CryptoScanBot-avalonia/CryptoScanner/bin/Debug/net8.0/osx-arm64/publish-marius/CryptoScanBot` (native
+  arm64; all 3 Mac-build workarounds already fixed upstream). Our safety branch
+  `feat/signalr-barometer-prices` (incl. `dcbd10dc`) kept untouched.
+- Rewrote `signalr-dto.ts` + `signalr-source.ts` (this branch, not yet committed). `pnpm -r typecheck`
+  green across all 5 packages. No eslint config in repo (lint is a no-op); typecheck is the gate.
+- Confirmed against his source: event `ReceiveDashboardUpdate` (SignalRService.cs:160), PascalCase wire
+  (`PropertyNamingPolicy = null`), `GetBarometerGraph` returns `{Quote, Interval, Points:[{Time,Value}]}`
+  (no Exchange/Ready/Progress), push gated on `ApplicationStatus == Running`, no snapshot-on-connect (so
+  first data lands on the next 1-min tick).
+- **Gaps still to coordinate with Marius (Inge appt'd him):** #1 no Ready/Progress (loading text +
+  prompt graph) - offer `dcbd10dc`; #2 1-min cadence (was ~2s while loading); #3 per-quote readings vs
+  server-selected quote; #5 (new, above) SymbolPrices scope. #4 LatestBarometerPoint is used here to set
+  the barometer `calculatedAtMs`.
+- **NEXT: Inge runs `publish-marius` with SignalR on for live-verify, THEN CHANGELOG (TECH) + commit + PR.**
 
 ## Out of scope here
 - The settings write-back `ApplySettings` (separate Phase 1, still to do WITH Inge).
