@@ -32,16 +32,39 @@ const PAGE_SIZE = 100
 
 // The "scanning" filter set = what the engine is actually scanning right now. This is the default
 // on load and what the Reset button returns to (so the scanned strategies/timeframes show ticked).
-// Note: intervals are deliberately left unrestricted (empty = all). The engine's Interval config is
-// which candle streams it *scans*, which is a poor proxy for which intervals signals appear on - the
-// SMC/zone strategies (smc/dlz/fvg) analyse higher timeframes and emit e.g. 1h signals even when only
-// 1m/2m/3m are scanned. Restricting by scan-intervals hid those valid signals; strategies still map
-// cleanly (enabled == emitted), so only they default to the scanned set.
+// intervals uses settings.scannedIntervals (NOT the raw scan intervals): the SMC/zone strategies
+// (smc/dlz/fvg) analyse higher timeframes and emit e.g. 1h signals even when only 1m/2m/3m are
+// scanned, and the bridge unions those zone intervals in so they show ticked (and aren't filtered out).
 function scannedFilters(settings: EngineSettings | null): Filters {
   if (!settings) return DEFAULT_FILTERS
   const { long, short } = settings.sides
   const side: Filters['side'] = long && short ? 'all' : long ? 'long' : short ? 'short' : 'all'
-  return { strategies: settings.enabledStrategies, intervals: [], side }
+  return { strategies: settings.enabledStrategies, intervals: settings.scannedIntervals, side }
+}
+
+const sameSet = (a: string[], b: string[]): boolean => a.length === b.length && a.every((x) => b.includes(x))
+
+// Track the scanner's active set across a settings change while preserving the user's manual tweaks
+// (ported from the old app's reconcileWithScanner). Relative to the previous scanned set (`prev`), the
+// current selection carries two manual diffs: extras (added on top) and removals (deselected). Re-apply
+// both to the new scanned set (`next`): selection = (next - removals) + extras. So enabling a timeframe
+// in settings adds it, disabling one removes it, and a manually-added extra stays. An empty ([] = "all")
+// dimension is left as-is. Only the array dims are reconciled; `side` keeps the user's choice.
+function reconcileFilters(current: Filters, prev: Filters, next: Filters): Filters {
+  const dims = ['strategies', 'intervals'] as const
+  let changed = false
+  const merged: Filters = { ...current }
+  for (const dim of dims) {
+    if (current[dim].length === 0 || next[dim].length === 0) continue
+    const extras = current[dim].filter((v) => !prev[dim].includes(v))
+    const removals = prev[dim].filter((v) => !current[dim].includes(v))
+    const reconciled = [
+      ...next[dim].filter((v) => !removals.includes(v)),
+      ...extras.filter((v) => !next[dim].includes(v)),
+    ]
+    if (!sameSet(reconciled, current[dim])) { merged[dim] = reconciled; changed = true }
+  }
+  return changed ? merged : current
 }
 
 export function App() {
@@ -63,6 +86,9 @@ export function App() {
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didInitFilters = useRef(false)
   const prevConfigSig = useRef<string | null>(null)
+  // The scanned set as of the last config change, so we can reconcile the user's selection forward
+  // (add newly-scanned, drop newly-unscanned) instead of clobbering it. Seeded on first default.
+  const prevScanned = useRef<Filters | null>(null)
   const didInitExchange = useRef(false)
   const everHadData = useRef(false)
 
@@ -104,10 +130,13 @@ export function App() {
         const sig = ev.settings.configSignature
         if (prevConfigSig.current != null && sig !== prevConfigSig.current) {
           setSettingsChangedAt(ev.settings.lastChangedMs)
-          // Keep the filter in sync with what the engine now scans, so a newly enabled strategy
-          // (e.g. Jump) is ticked and its signals actually show - otherwise the banner appears but
-          // the rows stay hidden behind the old filter.
-          setFilters(scannedFilters(ev.settings))
+          // Keep the filter in sync with what the engine now scans (a newly enabled strategy/timeframe
+          // gets ticked so its signals show), WITHOUT clobbering the user's manual selection: reconcile
+          // forward from the previous scanned set instead of overwriting.
+          const next = scannedFilters(ev.settings)
+          const prev = prevScanned.current
+          setFilters((f) => (prev ? reconcileFilters(f, prev, next) : next))
+          prevScanned.current = next
         }
         prevConfigSig.current = sig
         setSettings(ev.settings)
@@ -176,7 +205,9 @@ export function App() {
   useEffect(() => {
     if (didInitFilters.current || !settings) return
     didInitFilters.current = true
-    setFilters(scannedFilters(settings))
+    const initial = scannedFilters(settings)
+    prevScanned.current = initial
+    setFilters(initial)
   }, [settings])
 
   // Changing a filter starts the list from the top again.

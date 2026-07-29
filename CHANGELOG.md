@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.15 - 2026-07-30
+
+### FIX
+- **Interval filter now reflects what the scanner really emits (incl. OrderBlock's 1h) and stops resetting itself.** The interval filter defaulted to "All" and, on any settings change, wiped whatever you had selected - so picking `1m/2m/3m` reverted straight back to "All", and Reset stayed "All". Two root causes, both fixed: (1) the filter now defaults + Resets to the actual scanned set, and the zone strategies' own timeframes are counted in it - OrderBlock/SMC scans `1h`, FVG `1h/4h/1d`, DLZ `1h`, so those emit higher-timeframe signals even when only `1m/2m/3m` are scanned. `1h` is therefore ticked (and no longer dimmed "not scanning"). (2) A live settings change now *reconciles* your selection forward (adds newly-scanned, drops newly-unscanned) instead of overwriting it, so your manual tweaks stick. Ported from the old app's filter/reset logic.
+
 ## v0.8.14 - 2026-07-30
 
 ### FIX
