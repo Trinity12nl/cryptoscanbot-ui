@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.12 - 2026-07-29
+
+### IMPROVED
+- **Live "Loading candles..." progress is back with the official engine.** The bridge now reads the barometer's `Ready` + `Progress` from the engine's dashboard API (the header shows the pulsating candles + "Loading candles... N/M (SYMBOL)" during startup and flips to the real graph the instant loading finishes). Works with engine builds that expose these fields and falls back cleanly (`ready=true`) on older ones. The `probe-signalr.mjs` dev tool prints them too. (Pairs with the engine PR that adds `Ready`/`Progress` to the barometer DTOs + a faster push while loading.)
+
 ## v0.8.11 - 2026-07-29
 
 ### TECH

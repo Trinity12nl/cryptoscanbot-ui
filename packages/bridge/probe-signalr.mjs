@@ -39,7 +39,7 @@ conn.on('ReceiveDashboardUpdate', (dto) => {
     console.log(
       `[${ts()}] BAROMETER  ${bv.Quote}  ` +
       `1h=${num(bv.Barometer1h)} 4h=${num(bv.Barometer4h)} 1d=${num(bv.Barometer1d)}  ` +
-      `time=${bv.BarometerTime}`
+      `time=${bv.BarometerTime}  Ready=${bv.Ready} Progress="${bv.Progress ?? ''}"`
     )
   }
 
@@ -91,7 +91,8 @@ async function pullGraph(quote, interval) {
     const lastVal = n ? Number(g.Points[n - 1].Value).toFixed(2) : '-'
     console.log(
       `[${ts()}] GRAPH PULL ${g.Quote} ${g.Interval}  ` +
-      `points=${n}  window=${first}..${last}  lastValue=${lastVal}`
+      `points=${n}  window=${first}..${last}  lastValue=${lastVal}  ` +
+      `Ready=${g.Ready} Progress="${g.Progress ?? ''}"`
     )
   } catch (err) {
     console.log(`[${ts()}] GetBarometerGraph(${quote},${interval}) failed: ${err?.message ?? err}`)
