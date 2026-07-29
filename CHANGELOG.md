@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.11 - 2026-07-29
+
+### TECH
+- **Bridge now speaks the engine's official dashboard API.** The bridge previously consumed four interim SignalR broadcasts we had added to a local engine branch (`ReceiveBarometer` / `ReceivePrices` / `ReceiveMarketIndicators` / `ReceiveTickers`). The engine author (Marius) shipped his own equivalent upstream, so the bridge now consumes his single combined `ReceiveDashboardUpdate` push plus the `GetBarometerGraph` RPC instead. No visible change - the header's barometer, market indicators, prices and ticker counters populate exactly as before. Prices deliberately stay on the public ccxt ticker (the engine's push only carries a handful of info-bar reference symbols, not every scanned symbol). The `probe-signalr.mjs` dev tool was updated to the new API so the live link stays verifiable.
+
 ## v0.8.10 - 2026-07-28
 
 ### FIX

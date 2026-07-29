@@ -1,61 +1,72 @@
-import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, Tickers } from '@csb/shared'
+import type { Barometer, BarometerGraph, MarketIndicators, Tickers } from '@csb/shared'
 
 /**
- * Translation of the C# SignalR hub's wire DTOs (PascalCase, JSON `PropertyNamingPolicy = null`) to
- * our UI-shaped camelCase types. Kept separate from signalr-source.ts so the client stays small and
- * the exact wire contract (matching CryptoScanner.Core/SignalR/*.cs) lives in one place.
+ * Translation of the C# engine's SignalR dashboard DTOs (avalonia `CryptoScanner.Core/SignalR/*.cs`,
+ * PascalCase since `PayloadSerializerOptions.PropertyNamingPolicy = null`) into our UI-shaped
+ * camelCase types. Kept separate from signalr-source.ts so the client stays small and the exact wire
+ * contract lives in one place.
  *
- * Dates arrive as ISO-8601 strings (System.Text.Json DateTime). We keep epoch ms.
+ * The engine pushes ONE combined `ReceiveDashboardUpdate(DashboardUpdateDto)` (~1/min, and only while
+ * `ApplicationStatus == Running`) plus answers a `GetBarometerGraph(quote, interval)` RPC. This is
+ * Marius' official dashboard API (avalonia `0adb969f`); it replaces our interim four `Receive*`
+ * broadcasts.
+ *
+ * Dates arrive as ISO-8601 strings (System.Text.Json DateTime); we keep epoch ms.
+ *
+ * NOTE on prices: the engine's `SymbolPrices` only covers `Settings.ShowSymbolInformation` (a handful
+ * of reference symbols for the info bar), NOT every scanned symbol. Our signals-table Change column
+ * needs the full map, so we deliberately do NOT map these into the price seam - the ccxt ticker stays
+ * the price source (see signalr-source.ts / server.ts). SymbolPrices is therefore left unmapped.
  */
 
-interface BarometerWire {
-  Exchange: string
-  Quote: string
-  Barometer15m: number | null
-  Barometer30m: number | null
-  Barometer1h: number | null
-  Barometer4h: number | null
-  Barometer1d: number | null
-  CalculatedAt: string
-  Ready: boolean
-  Progress: string | null
-}
-
-interface PricesWire {
-  Exchange: string
-  Date: string
-  Prices: Record<string, number>
-}
-
-interface MarketIndicatorWire {
-  Name: string
-  Value: number
-  Volume: number
-}
-
-interface MarketIndicatorsWire {
-  Date: string
-  Indicators: MarketIndicatorWire[]
-}
-
+/** One barometer graph point (BarometerPointDto): `{ Time, Value }`. */
 interface BarometerPointWire {
-  Date: string
+  Time: string
   Value: number
 }
 
-interface TickersWire {
-  Date: string
-  KlineTickerCount: number
-  AnalyzeCount: number
-  SignalCount: number
+/** Current barometer summary (BarometerValuesDto): 1h/4h/1d only - no 15m/30m, no Ready/Progress. */
+interface BarometerValuesWire {
+  Quote: string
+  Barometer1h: number
+  Barometer4h: number
+  Barometer1d: number
+  BarometerTime: string
 }
 
-interface BarometerGraphWire {
-  Exchange: string
+/** One market indicator (MarketIndicatorDto): a TradingView value or Fear & Greed. Price/Volume null
+ * when the source has no reading yet. */
+interface MarketIndicatorWire {
+  Type: string
+  Symbol: string
+  Name: string
+  Price: number | null
+  Volume: number | null
+}
+
+/** Ticker/scanner counters (TickerStatsDto). `ScannerPositionCount` is intentionally ignored -
+ * trading (open positions) is out of scope for our UI. */
+interface TickerStatsWire {
+  KlineTickerCount: number
+  ScannerExecuteCount: number
+  ScannerSignalCount: number
+  ScannerPositionCount: string
+}
+
+/** The once-a-minute combined push (DashboardUpdateDto). */
+export interface DashboardUpdateWire {
+  LatestBarometerPoint: BarometerPointWire | null
+  BarometerValues: BarometerValuesWire | null
+  MarketIndicators: MarketIndicatorWire[] | null
+  /** Engine info-bar symbol prices - present on the wire but intentionally unmapped (see file header). */
+  SymbolPrices: unknown
+  TickerStats: TickerStatsWire | null
+}
+
+/** The graph RPC result (BarometerGraphDto): `{ Quote, Interval, Points }`. No Exchange/Ready/Progress. */
+export interface BarometerGraphWire {
   Quote: string
   Interval: string
-  Ready: boolean
-  Progress: string | null
   Points: BarometerPointWire[]
 }
 
@@ -66,53 +77,75 @@ function toMs(iso: string | null | undefined): number | null {
   return Number.isNaN(ms) ? null : ms
 }
 
-export function parseBarometer(w: BarometerWire): Barometer {
+/**
+ * The pieces we fan out from one dashboard push. Each is null when the engine omitted that section
+ * (e.g. no active exchange yet). Prices are absent by design (the ccxt ticker owns them).
+ */
+export interface DashboardParts {
+  barometer: Barometer | null
+  marketIndicators: MarketIndicators | null
+  tickers: Tickers | null
+}
+
+export function parseDashboardUpdate(w: DashboardUpdateWire): DashboardParts {
   return {
-    exchange: w.Exchange,
-    quote: w.Quote,
-    m15: w.Barometer15m,
-    m30: w.Barometer30m,
-    h1: w.Barometer1h,
-    h4: w.Barometer4h,
-    d1: w.Barometer1d,
-    calculatedAtMs: toMs(w.CalculatedAt),
-    ready: w.Ready,
-    progress: w.Progress ?? '',
+    barometer: parseBarometerValues(w.BarometerValues, w.LatestBarometerPoint),
+    marketIndicators: parseMarketIndicators(w.MarketIndicators),
+    tickers: parseTickerStats(w.TickerStats),
   }
 }
 
-export function parsePrices(w: PricesWire): PriceMap {
-  // Already a symbolName -> price map; the C# side keys it exactly like our normalised names.
-  return w.Prices ?? {}
+/** BarometerValuesDto -> Barometer. 15m/30m are absent (null). `ready` is always true (the engine only
+ * pushes once it reaches Running) and `progress` is '' until Marius adds Ready/Progress to the DTO.
+ * `calculatedAtMs` comes from the latest graph point's Time when present - `BarometerTime` is only an
+ * "HH:mm" display string, not a full timestamp. */
+function parseBarometerValues(
+  bv: BarometerValuesWire | null, latest: BarometerPointWire | null,
+): Barometer | null {
+  if (!bv) return null
+  return {
+    exchange: '',
+    quote: bv.Quote,
+    m15: null,
+    m30: null,
+    h1: bv.Barometer1h,
+    h4: bv.Barometer4h,
+    d1: bv.Barometer1d,
+    calculatedAtMs: toMs(latest?.Time),
+    ready: true,
+    progress: '',
+  }
 }
 
-export function parseMarketIndicators(w: MarketIndicatorsWire): MarketIndicators {
+function parseMarketIndicators(list: MarketIndicatorWire[] | null): MarketIndicators | null {
+  if (!list) return null
   return {
-    dateMs: toMs(w.Date),
-    indicators: (w.Indicators ?? []).map((i) => ({
+    dateMs: null,
+    indicators: list.map((i) => ({
       name: i.Name,
-      value: i.Value,
-      volume: i.Volume,
+      value: i.Price ?? 0,
+      volume: i.Volume ?? 0,
     })),
   }
 }
 
-export function parseTickers(w: TickersWire): Tickers {
+function parseTickerStats(t: TickerStatsWire | null): Tickers | null {
+  if (!t) return null
   return {
-    dateMs: toMs(w.Date),
-    klineTickerCount: w.KlineTickerCount,
-    analyzeCount: w.AnalyzeCount,
-    signalCount: w.SignalCount,
+    dateMs: null,
+    klineTickerCount: t.KlineTickerCount,
+    analyzeCount: t.ScannerExecuteCount,
+    signalCount: t.ScannerSignalCount,
   }
 }
 
 export function parseBarometerGraph(w: BarometerGraphWire): BarometerGraph {
   return {
-    exchange: w.Exchange,
+    exchange: '',
     quote: w.Quote,
     interval: w.Interval,
-    ready: w.Ready,
-    progress: w.Progress ?? '',
-    points: (w.Points ?? []).map((p) => ({ tMs: toMs(p.Date) ?? 0, value: p.Value })),
+    ready: true,
+    progress: '',
+    points: (w.Points ?? []).map((p) => ({ tMs: toMs(p.Time) ?? 0, value: p.Value })),
   }
 }

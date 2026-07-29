@@ -1,23 +1,23 @@
 import * as signalR from '@microsoft/signalr'
 import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, Tickers } from '@csb/shared'
-import {
-  parseBarometer, parseBarometerGraph, parseMarketIndicators, parsePrices, parseTickers,
-} from './signalr-dto.js'
+import { parseBarometerGraph, parseDashboardUpdate } from './signalr-dto.js'
+import type { DashboardUpdateWire } from './signalr-dto.js'
 
 /**
  * Phase B live link: a SignalR client that connects to the C# engine's hub
- * (avalonia `SignalRService`, default http://localhost:5200/signalr/signals) and listens for the
- * one event it broadcasts: `ReceiveSignal(CryptoSignalDto)`, fired the moment the engine creates a
- * signal.
+ * (avalonia `SignalRService`, default http://localhost:5200/signalr/signals) and listens for two
+ * broadcasts:
+ *  - `ReceiveSignal(CryptoSignalDto)` - the moment the engine creates a signal.
+ *  - `ReceiveDashboardUpdate(DashboardUpdateDto)` - the engine's combined live dashboard push (~1/min,
+ *    only while Running): barometer readings, market indicators, and ticker counters. We fan its
+ *    pieces out to the barometer/marketIndicators/tickers listeners. (Prices ride the ccxt ticker, not
+ *    this push - see signalr-dto.ts.) The ~7h barometer graph is pulled on demand via the
+ *    `GetBarometerGraph(quote, interval)` hub RPC.
  *
- * We use it for exactly two things (see HybridDataSource):
- *  1. REAL engine liveness - a live hub connection means the engine is running right now, which the
- *     Phase-A "the DB file exists" check could only guess at.
- *  2. A near-instant push trigger - on a ReceiveSignal we poke the SQLite source to poll immediately
- *     instead of waiting up to 1.5s for its next tick.
- *
- * We deliberately ignore the DTO's payload (barometer/trend/etc): the SQLite oracle stores all of it
- * and is the single source of truth, so we only need the "a signal just fired" notification.
+ * The oracle SQLite DB remains the single source of truth for signals; the ReceiveSignal payload is
+ * ignored beyond its id, used only for (1) REAL engine liveness (a live hub connection means the
+ * engine is running now, which the Phase-A "DB file exists" check could only guess at) and (2) a
+ * near-instant push trigger to poke the SQLite source to poll immediately.
  *
  * Robustness: the hub is off by default and only present when the engine has SignalREnabled=true, so
  * this must degrade gracefully. We manage our own reconnect loop; when the hub is absent we simply
@@ -58,6 +58,9 @@ export class SignalrSource {
   // snapshot to every newly-connected UI client (the hub's own snapshot-on-connect only reaches us,
   // the single hub client, not each browser tab).
   private readonly barometerListeners = new Set<(b: Barometer) => void>()
+  // Price seam kept for the ScannerDataSource contract, but currently inert: the engine's dashboard
+  // push only carries the info-bar reference symbols, not every scanned symbol, so prices stay on the
+  // ccxt ticker (see signalr-dto.ts). These never fire today; server.ts then keeps the ticker live.
   private readonly pricesListeners = new Set<(p: PriceMap) => void>()
   private readonly marketIndicatorsListeners = new Set<(m: MarketIndicators) => void>()
   private readonly tickersListeners = new Set<(t: Tickers) => void>()
@@ -92,25 +95,23 @@ export class SignalrSource {
     conn.on('ReceiveSignal', (dto: CryptoSignalDto) => {
       for (const cb of this.signalListeners) cb(dto.Id)
     })
-    conn.on('ReceiveBarometer', (dto: Parameters<typeof parseBarometer>[0]) => {
-      const b = parseBarometer(dto)
-      this.lastBarometerByQuote.set(b.quote, b)
-      for (const cb of this.barometerListeners) cb(b)
-    })
-    conn.on('ReceivePrices', (dto: Parameters<typeof parsePrices>[0]) => {
-      const p = parsePrices(dto)
-      this.lastPrices = p
-      for (const cb of this.pricesListeners) cb(p)
-    })
-    conn.on('ReceiveMarketIndicators', (dto: Parameters<typeof parseMarketIndicators>[0]) => {
-      const m = parseMarketIndicators(dto)
-      this.lastMarketIndicators = m
-      for (const cb of this.marketIndicatorsListeners) cb(m)
-    })
-    conn.on('ReceiveTickers', (dto: Parameters<typeof parseTickers>[0]) => {
-      const t = parseTickers(dto)
-      this.lastTickers = t
-      for (const cb of this.tickersListeners) cb(t)
+    // The engine's combined dashboard push - fan its pieces out to the individual seams so the rest of
+    // the bridge (hybrid-source, server) is unchanged. Prices are not carried here (ccxt ticker owns
+    // them); a null piece means the engine omitted that section this tick, so we leave the cache as-is.
+    conn.on('ReceiveDashboardUpdate', (dto: DashboardUpdateWire) => {
+      const parts = parseDashboardUpdate(dto)
+      if (parts.barometer) {
+        this.lastBarometerByQuote.set(parts.barometer.quote, parts.barometer)
+        for (const cb of this.barometerListeners) cb(parts.barometer)
+      }
+      if (parts.marketIndicators) {
+        this.lastMarketIndicators = parts.marketIndicators
+        for (const cb of this.marketIndicatorsListeners) cb(parts.marketIndicators)
+      }
+      if (parts.tickers) {
+        this.lastTickers = parts.tickers
+        for (const cb of this.tickersListeners) cb(parts.tickers)
+      }
     })
     // We drive reconnection ourselves (below) rather than withAutomaticReconnect, so the same loop
     // covers both an initial connect failure (hub not up yet) and a later drop.
