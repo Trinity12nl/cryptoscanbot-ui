@@ -22,15 +22,29 @@ export function resolveSettingsPath(opts: DataLocation = {}): string {
 }
 
 interface SideConfig { Strategy?: string[]; Interval?: string[] }
+interface ZoneConfig { IntervalList?: string[] }
 /** The narrow slice of the settings file that `normalize` reads (the rest is passed through raw). */
 interface SettingsShape {
   General?: {
     ActivateExchangeName?: string; RemoveSignalAfterxCandles?: number
     SignalREnabled?: boolean; SignalRPort?: number
   }
-  Signal?: { Long?: SideConfig; Short?: SideConfig }
+  Signal?: {
+    Long?: SideConfig; Short?: SideConfig
+    // Zone strategies scan their OWN interval list (higher timeframes), independent of the scan
+    // intervals above - e.g. SMC/OrderBlock on 1h even when only 1m/2m/3m are scanned.
+    ZonesSmc?: ZoneConfig; ZonesFvg?: ZoneConfig; ZonesDlz?: ZoneConfig
+  }
   QuoteCoins?: Record<string, { MinimalVolume?: number; FetchCandles?: boolean }>
   ShowSymbolInformation?: string[]
+}
+
+// Each zone strategy's own interval list only matters when a strategy that emits from that zone is
+// enabled. Maps the engine's zone config key -> the display names (STRATEGY_NAMES) that fire from it.
+const ZONE_STRATEGIES: Record<'ZonesSmc' | 'ZonesFvg' | 'ZonesDlz', string[]> = {
+  ZonesSmc: ['OrderBlock', 'OrderBlockRejection'],
+  ZonesFvg: ['FairValueGap'],
+  ZonesDlz: ['DominantLevel', 'DominantLevelNear'],
 }
 
 function normalize(raw: SettingsShape, lastChangedMs: number): EngineSettings {
@@ -46,6 +60,15 @@ function normalize(raw: SettingsShape, lastChangedMs: number): EngineSettings {
 
   const enabledIntervals = [...new Set([...(long.Interval ?? []), ...(short.Interval ?? [])])]
 
+  // Signals can appear on the scan intervals PLUS each enabled zone strategy's own interval list
+  // (e.g. OrderBlock emits 1h). Union those in so higher-TF signals aren't dimmed/filtered out.
+  const scannedIntervals = [...new Set([
+    ...enabledIntervals,
+    ...(Object.entries(ZONE_STRATEGIES) as [keyof typeof ZONE_STRATEGIES, string[]][])
+      .flatMap(([zoneKey, names]) =>
+        names.some((n) => enabledStrategies.includes(n)) ? (raw.Signal?.[zoneKey]?.IntervalList ?? []) : []),
+  ])]
+
   const quoteCoins = Object.entries(raw.QuoteCoins ?? {}).map(([name, q]) => ({
     name,
     minVolume: Number(q?.MinimalVolume ?? 0),
@@ -56,6 +79,7 @@ function normalize(raw: SettingsShape, lastChangedMs: number): EngineSettings {
     activeExchange: raw.General?.ActivateExchangeName ?? null,
     enabledStrategies,
     enabledIntervals,
+    scannedIntervals,
     sides: {
       long: (long.Strategy?.length ?? 0) > 0,
       short: (short.Strategy?.length ?? 0) > 0,
@@ -72,6 +96,9 @@ function normalize(raw: SettingsShape, lastChangedMs: number): EngineSettings {
       q: Object.entries(raw.QuoteCoins ?? {}).map(([n, c]) => [n, c?.MinimalVolume ?? 0, c?.FetchCandles === true]),
       ex: raw.General?.ActivateExchangeName ?? null,
       rm: raw.General?.RemoveSignalAfterxCandles ?? 0,
+      // Zone interval lists: a change here shifts the scanned-interval set (e.g. OrderBlock 1h -> 4h).
+      zs: raw.Signal?.ZonesSmc?.IntervalList ?? [], zf: raw.Signal?.ZonesFvg?.IntervalList ?? [],
+      zd: raw.Signal?.ZonesDlz?.IntervalList ?? [],
     }),
   }
 }

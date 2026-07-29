@@ -31,8 +31,10 @@ export function FilterBar({
   const inactiveStrategies = settings
     ? new Set(strategies.filter((s) => !settings.enabledStrategies.includes(s)))
     : undefined
-  const inactiveIntervals = settings && settings.enabledIntervals.length > 0
-    ? new Set(intervals.filter((iv) => !settings.enabledIntervals.includes(iv)))
+  // Dim by scannedIntervals (scan intervals + enabled zone strategies' own timeframes, e.g. OrderBlock
+  // 1h), so a higher-TF interval the engine really emits on is NOT shown as "not scanning".
+  const inactiveIntervals = settings && settings.scannedIntervals.length > 0
+    ? new Set(intervals.filter((iv) => !settings.scannedIntervals.includes(iv)))
     : undefined
   const sideOff = (s: 'all' | 'long' | 'short'): boolean =>
     settings != null && ((s === 'long' && !settings.sides.long) || (s === 'short' && !settings.sides.short))

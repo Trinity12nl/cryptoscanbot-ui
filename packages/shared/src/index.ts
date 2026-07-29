@@ -282,8 +282,13 @@ export interface EngineSettings {
   activeExchange: string | null
   /** Strategy display names (see STRATEGY_NAMES) that are switched ON in the engine. */
   enabledStrategies: string[]
-  /** Interval names (e.g. "1m","5m") the engine is configured to scan. */
+  /** Interval names (e.g. "1m","5m") the engine is configured to scan (Signal.Long/Short.Interval). */
   enabledIntervals: string[]
+  /** The intervals signals can actually appear on = enabledIntervals UNION each enabled ZONE
+   * strategy's own interval list (SMC/OrderBlock, FVG, DLZ analyse higher timeframes - e.g. OrderBlock
+   * scans 1h even when only 1m/2m/3m are scanned). Use THIS for the interval filter default/reset and
+   * the "not scanning" dimming, so those higher-TF signals aren't hidden. */
+  scannedIntervals: string[]
   /** Which trade sides the engine emits. */
   sides: { long: boolean; short: boolean }
   /** Configured quote coins; `active` = the engine actually fetches/scans it. */
