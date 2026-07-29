@@ -25,13 +25,16 @@ interface BarometerPointWire {
   Value: number
 }
 
-/** Current barometer summary (BarometerValuesDto): 1h/4h/1d only - no 15m/30m, no Ready/Progress. */
+/** Current barometer summary (BarometerValuesDto): 1h/4h/1d only - no 15m/30m. `Ready`/`Progress` are
+ * present on newer engine builds (candle-load state); optional so we still parse older builds. */
 interface BarometerValuesWire {
   Quote: string
   Barometer1h: number
   Barometer4h: number
   Barometer1d: number
   BarometerTime: string
+  Ready?: boolean
+  Progress?: string | null
 }
 
 /** One market indicator (MarketIndicatorDto): a TradingView value or Fear & Greed. Price/Volume null
@@ -63,11 +66,14 @@ export interface DashboardUpdateWire {
   TickerStats: TickerStatsWire | null
 }
 
-/** The graph RPC result (BarometerGraphDto): `{ Quote, Interval, Points }`. No Exchange/Ready/Progress. */
+/** The graph RPC result (BarometerGraphDto): `{ Quote, Interval, Points }`. No Exchange. `Ready`/
+ * `Progress` are present on newer engine builds; optional so we still parse older builds. */
 export interface BarometerGraphWire {
   Quote: string
   Interval: string
   Points: BarometerPointWire[]
+  Ready?: boolean
+  Progress?: string | null
 }
 
 /** Parse an ISO date string to epoch ms, or null when absent/unparseable. */
@@ -95,10 +101,10 @@ export function parseDashboardUpdate(w: DashboardUpdateWire): DashboardParts {
   }
 }
 
-/** BarometerValuesDto -> Barometer. 15m/30m are absent (null). `ready` is always true (the engine only
- * pushes once it reaches Running) and `progress` is '' until Marius adds Ready/Progress to the DTO.
- * `calculatedAtMs` comes from the latest graph point's Time when present - `BarometerTime` is only an
- * "HH:mm" display string, not a full timestamp. */
+/** BarometerValuesDto -> Barometer. 15m/30m are absent (null). `ready`/`progress` come from the engine's
+ * candle-load state when present; older builds omit them, so we fall back to `ready=true` (the push
+ * only fires once Running there anyway) and `progress=''`. `calculatedAtMs` comes from the latest graph
+ * point's Time when present - `BarometerTime` is only an "HH:mm" display string, not a full timestamp. */
 function parseBarometerValues(
   bv: BarometerValuesWire | null, latest: BarometerPointWire | null,
 ): Barometer | null {
@@ -112,8 +118,8 @@ function parseBarometerValues(
     h4: bv.Barometer4h,
     d1: bv.Barometer1d,
     calculatedAtMs: toMs(latest?.Time),
-    ready: true,
-    progress: '',
+    ready: bv.Ready ?? true,
+    progress: bv.Progress ?? '',
   }
 }
 
@@ -144,8 +150,8 @@ export function parseBarometerGraph(w: BarometerGraphWire): BarometerGraph {
     exchange: '',
     quote: w.Quote,
     interval: w.Interval,
-    ready: true,
-    progress: '',
+    ready: w.Ready ?? true,
+    progress: w.Progress ?? '',
     points: (w.Points ?? []).map((p) => ({ tMs: toMs(p.Time) ?? 0, value: p.Value })),
   }
 }
