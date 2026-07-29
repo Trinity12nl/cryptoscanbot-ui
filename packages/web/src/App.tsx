@@ -242,7 +242,7 @@ export function App() {
     <div className="flex h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <Header info={info} live={live} shown={visible.length} today={todayCount} />
       {info?.signalrConnected && (
-        <MarketHeader barometers={barometers} indicators={indicators} tickers={tickers} prices={prices} symbols={symbols} />
+        <MarketHeader barometers={barometers} indicators={indicators} tickers={tickers} prices={prices} symbols={symbols} priceBases={settings?.showSymbolInformation ?? []} />
       )}
       <NoDataBanner info={info} empty={emptyDb} />
       {error && (

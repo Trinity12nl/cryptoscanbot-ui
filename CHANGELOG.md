@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.13 - 2026-07-29
+
+### IMPROVED
+- **Header now mirrors the scanner: European numbers, matching order, and green/red on the move.** Numbers use Dutch notation everywhere (`.` thousands, `,` decimals - e.g. `64.460,20`, `656,50B`, `69.009`). Market Indicators are shown in the scanner's fixed order (Market Cap Total, US Dollar Index, S&P 500, BTC Dominance, Fear & Greed) with 2 decimals, and every indicator - plus the Crypto Prices - turns green when it ticks up and red when it ticks down, holding the colour until the next move (like the scanner). Crypto Prices now list the engine's configured `ShowSymbolInformation` symbols for the active quote (the same set the scanner shows), instead of a fixed base list. Fear & Greed is a plain integer coloured by direction.
+
 ## v0.8.12 - 2026-07-29
 
 ### IMPROVED

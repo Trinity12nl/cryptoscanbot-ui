@@ -30,6 +30,7 @@ interface SettingsShape {
   }
   Signal?: { Long?: SideConfig; Short?: SideConfig }
   QuoteCoins?: Record<string, { MinimalVolume?: number; FetchCandles?: boolean }>
+  ShowSymbolInformation?: string[]
 }
 
 function normalize(raw: SettingsShape, lastChangedMs: number): EngineSettings {
@@ -60,6 +61,7 @@ function normalize(raw: SettingsShape, lastChangedMs: number): EngineSettings {
       short: (short.Strategy?.length ?? 0) > 0,
     },
     quoteCoins,
+    showSymbolInformation: raw.ShowSymbolInformation ?? [],
     removeSignalAfterCandles: Number(raw.General?.RemoveSignalAfterxCandles ?? 0),
     lastChangedMs: Math.round(lastChangedMs),
     // Only the scan-relevant fields (raw, so a strategy like baba that we don't map is still seen).
