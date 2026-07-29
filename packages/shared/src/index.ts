@@ -284,6 +284,9 @@ export interface EngineSettings {
   sides: { long: boolean; short: boolean }
   /** Configured quote coins; `active` = the engine actually fetches/scans it. */
   quoteCoins: { name: string; minVolume: number; active: boolean }[]
+  /** Base coins the engine is configured to show in the header's Crypto Prices (General
+   * `ShowSymbolInformation`), in order, e.g. ["BTC","ETH","XRP","SOL","ADA"]. */
+  showSymbolInformation: string[]
   /** Candles after a signal's open before it is considered stale/expired (0 = never expire). */
   removeSignalAfterCandles: number
   /** Settings file last-modified time (epoch ms). Note: the engine rewrites this file for its own

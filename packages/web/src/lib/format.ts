@@ -1,32 +1,50 @@
+// European notation everywhere: '.' as the thousands separator and ',' as the decimal separator
+// (Dutch locale). Dates/times keep their own ISO-ish helpers below.
+const LOCALE = 'nl-NL'
+
+/** Fixed-decimal European format, e.g. nlFixed(1917.39, 4) -> "1.917,3900". */
+function nlFixed(n: number, decimals: number): string {
+  return n.toLocaleString(LOCALE, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+}
+
 export function formatPrice(n: number | null | undefined): string {
   if (n == null) return '-'
   const abs = Math.abs(n)
-  if (abs >= 10_000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  if (abs >= 1)      return n.toFixed(4)
-  if (abs >= 0.0001) return n.toFixed(6)
-  return n.toExponential(3)
+  if (abs >= 10_000) return nlFixed(n, 2)
+  if (abs >= 1)      return nlFixed(n, 4)
+  if (abs >= 0.0001) return nlFixed(n, 6)
+  return n.toExponential(3).replace('.', ',')
 }
 
 export function formatNum(n: number | null | undefined, decimals = 2): string {
   if (n == null) return '-'
-  return n.toFixed(decimals)
+  return nlFixed(n, decimals)
 }
 
 export function formatMacd(n: number | null | undefined): string {
   if (n == null) return '-'
   const abs = Math.abs(n)
   if (abs === 0) return '0'
-  if (abs >= 10)   return n.toFixed(2)
-  if (abs >= 0.01) return n.toFixed(4)
-  return n.toFixed(6)
+  if (abs >= 10)   return nlFixed(n, 2)
+  if (abs >= 0.01) return nlFixed(n, 4)
+  return nlFixed(n, 6)
 }
 
+// Compact large numbers with 2 decimals + suffix, e.g. "656,50B", "7,43K". Used for both
+// market-indicator values and volumes.
 export function formatCompact(n: number | null | undefined): string {
   if (n == null) return '-'
-  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B'
-  if (n >= 1_000_000)     return (n / 1_000_000).toFixed(1) + 'M'
-  if (n >= 1_000)         return (n / 1_000).toFixed(1) + 'K'
-  return n.toFixed(0)
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000_000) return nlFixed(n / 1_000_000_000, 2) + 'B'
+  if (abs >= 1_000_000)     return nlFixed(n / 1_000_000, 2) + 'M'
+  if (abs >= 1_000)         return nlFixed(n / 1_000, 2) + 'K'
+  return nlFixed(n, 2)
+}
+
+/** Whole-number European format with thousands grouping, e.g. 69009 -> "69.009". */
+export function formatCount(n: number | null | undefined): string {
+  if (n == null) return '-'
+  return n.toLocaleString(LOCALE, { maximumFractionDigits: 0 })
 }
 
 // Candle date range, matching the C# signal grid notation:

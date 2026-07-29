@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, SymbolRow, Tickers } from '@csb/shared'
 import { fetchBarometerGraph } from '../lib/api'
-import { formatPrice, formatCompact } from '../lib/format'
+import { formatPrice, formatCompact, formatCount } from '../lib/format'
 import { BarometerPanel } from './BarometerPanel'
 
 /**
@@ -13,7 +13,19 @@ import { BarometerPanel } from './BarometerPanel'
  * engine counters get wired in a small C# follow-up.
  */
 
-const PRICE_BASES = ['BTC', 'ETH', 'XRP', 'SOL', 'ADA']
+// Crypto Prices shows the top N symbols of the active quote by 24h volume (dynamic, like the
+// scanner intends), instead of a fixed base list.
+const PRICE_COUNT = 5
+
+// Market Indicators in the exact order the C# scanner shows them (DashBoardInformationView TvSymbols):
+// Market Cap Total, US Dollar Index, S&P 500, BTC Dominance, Fear & Greed. The engine broadcasts them
+// in an unstable order, so we sort by keyword; anything unrecognised falls to the end.
+const INDICATOR_ORDER = ['market cap', 'dollar', 's&p', 'dominance', 'fear']
+function indicatorRank(name: string): number {
+  const n = name.toLowerCase()
+  const i = INDICATOR_ORDER.findIndex((kw) => n.includes(kw))
+  return i === -1 ? INDICATOR_ORDER.length : i
+}
 
 // Tickers column rows. The first three are live engine counters; Open positions stays a placeholder
 // (trading is out of scope for this build).
@@ -30,22 +42,39 @@ interface Props {
   tickers: Tickers | null
   prices: PriceMap
   symbols: SymbolRow[]
+  /** Base coins to show under Crypto Prices, from the engine's `ShowSymbolInformation` config (same
+   * source the scanner uses), in order. Each is paired with the active quote; non-existent pairs are
+   * skipped. */
+  priceBases: string[]
 }
 
 function fmtIndicator(name: string, value: number): string {
-  if (/fear/i.test(name)) return String(Math.round(value)) // Fear & Greed is a 0-100 index
+  if (/fear/i.test(name)) return String(Math.round(value)) // Fear & Greed is a plain 0-100 index
   return formatCompact(value)
 }
 
-function directionClass(prev: number | undefined, current: number): string {
-  if (prev == null || prev === current) return 'text-zinc-600 dark:text-zinc-300'
-  return current > prev ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
-}
+const DIR_UP = 'text-emerald-600 dark:text-emerald-400'
+const DIR_DOWN = 'text-red-500 dark:text-red-400'
+const DIR_NEUTRAL = 'text-zinc-600 dark:text-zinc-300'
 
-function fearGreedClass(value: number): string {
-  if (value >= 60) return 'text-emerald-600 dark:text-emerald-400'
-  if (value <= 40) return 'text-red-500 dark:text-red-400'
-  return 'text-zinc-600 dark:text-zinc-300'
+/**
+ * Persistent up/down colour per key, matching the scanner: the colour flips only when a value
+ * actually moves and stays put on unchanged ticks (instead of snapping back to neutral - the market
+ * indicators repeat the same value between many broadcasts). Kept in a ref so it survives re-renders;
+ * calling it during render is idempotent for a given (key, value).
+ */
+function makeDirectionTracker(): (key: string, value: number) => string {
+  const lastValue = new Map<string, number>()
+  const lastClass = new Map<string, string>()
+  return (key, value) => {
+    const prev = lastValue.get(key)
+    if (prev === undefined) { lastValue.set(key, value); return DIR_NEUTRAL }
+    if (value !== prev) {
+      lastClass.set(key, value > prev ? DIR_UP : DIR_DOWN)
+      lastValue.set(key, value)
+    }
+    return lastClass.get(key) ?? DIR_NEUTRAL
+  }
 }
 
 const Divider = () => <div className="self-stretch w-px bg-zinc-200 dark:bg-zinc-800 shrink-0" />
@@ -53,7 +82,7 @@ const ColTitle = ({ children }: { children: string }) => (
   <span className="font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{children}</span>
 )
 
-export function MarketHeader({ barometers, indicators, tickers, prices, symbols }: Props) {
+export function MarketHeader({ barometers, indicators, tickers, prices, symbols, priceBases }: Props) {
   const quotes = useMemo(() => [...barometers.keys()].sort(), [barometers])
   const [quote, setQuote] = useState('USDT')
   const [interval, setInterval] = useState('1h')
@@ -77,26 +106,38 @@ export function MarketHeader({ barometers, indicators, tickers, prices, symbols 
     return () => { alive = false; window.clearInterval(id) }
   }, [activeQuote, interval, tipReady])
 
-  // Colour indicator values by their move since the previous broadcast (like the scanner's red/green).
-  const prevIndicators = useRef<Map<string, number>>(new Map())
-  const seenIndicators = useRef<MarketIndicators | null>(null)
-  const prev = prevIndicators.current
-  useEffect(() => {
-    if (indicators && indicators !== seenIndicators.current) {
-      prevIndicators.current = new Map(indicators.indicators.map((i) => [i.name, i.value]))
-      seenIndicators.current = indicators
+  // Persistent green/red trackers (survive re-renders) for the indicator values and the crypto prices.
+  const indicatorDir = useRef(makeDirectionTracker()).current
+  const priceDir = useRef(makeDirectionTracker()).current
+
+  // Show the indicators in the scanner's fixed order regardless of broadcast order.
+  const sortedIndicators = useMemo(
+    () => [...(indicators?.indicators ?? [])].sort((a, b) => indicatorRank(a.name) - indicatorRank(b.name)),
+    [indicators],
+  )
+
+  // Crypto Prices = the engine's configured base coins (ShowSymbolInformation), each paired with the
+  // active quote, in order - the same set the scanner shows. Pairs that don't exist on the exchange
+  // (e.g. PAXGUSDT) are skipped; take the first few that do.
+  const byName = useMemo(() => new Map(symbols.map((s) => [s.name, s])), [symbols])
+  const topSymbols = useMemo(() => {
+    const rows: SymbolRow[] = []
+    for (const base of priceBases) {
+      const s = byName.get(base + activeQuote)
+      if (s) rows.push(s)
+      if (rows.length >= PRICE_COUNT) break
     }
-  }, [indicators])
+    return rows
+  }, [priceBases, byName, activeQuote])
 
-  const symbolVolume = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const s of symbols) if (s.volume != null) m.set(s.name, s.volume)
-    return m
-  }, [symbols])
-
-  const priceRows = PRICE_BASES.map((base) => {
-    const name = base + activeQuote
-    return { base, name, price: prices[name] ?? null, volume: symbolVolume.get(name) ?? null }
+  const priceRows = topSymbols.map((s) => {
+    const price = prices[s.name] ?? null
+    return {
+      name: s.name,
+      price,
+      volume: s.volume,
+      cls: price == null ? DIR_NEUTRAL : priceDir(s.name, price),
+    }
   })
 
   return (
@@ -112,12 +153,12 @@ export function MarketHeader({ barometers, indicators, tickers, prices, symbols 
       <div className="flex shrink-0 flex-col gap-1">
         <ColTitle>Market Indicators</ColTitle>
         <div className="grid grid-cols-[auto_auto] gap-x-6 gap-y-0.5">
-          {(indicators?.indicators ?? []).map((ind) => (
+          {sortedIndicators.map((ind) => (
             <div key={ind.name} className="contents">
               <span className="text-zinc-500 dark:text-zinc-400">{ind.name}</span>
-              <span className={`text-right font-mono font-semibold ${
-                /fear/i.test(ind.name) ? fearGreedClass(ind.value) : directionClass(prev.get(ind.name), ind.value)
-              }`}>{fmtIndicator(ind.name, ind.value)}</span>
+              <span className={`text-right font-mono font-semibold ${indicatorDir(ind.name, ind.value)}`}>
+                {fmtIndicator(ind.name, ind.value)}
+              </span>
             </div>
           ))}
           {!indicators && <span className="text-zinc-400 dark:text-zinc-600">Loading...</span>}
@@ -133,7 +174,7 @@ export function MarketHeader({ barometers, indicators, tickers, prices, symbols 
           {priceRows.map((r) => (
             <div key={r.name} className="contents">
               <span className="text-zinc-500 dark:text-zinc-400">{r.name}</span>
-              <span className="text-right font-mono font-semibold text-zinc-800 dark:text-zinc-100">
+              <span className={`text-right font-mono font-semibold ${r.cls}`}>
                 {formatPrice(r.price)}
               </span>
               <span className="text-right font-mono text-zinc-500 dark:text-zinc-400">
@@ -156,7 +197,7 @@ export function MarketHeader({ barometers, indicators, tickers, prices, symbols 
               <div key={label} className="contents">
                 <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
                 <span className={`text-right font-mono ${v != null ? 'font-semibold text-zinc-800 dark:text-zinc-100' : 'text-zinc-400 dark:text-zinc-600'}`}>
-                  {v != null ? v.toLocaleString('en-US') : '-'}
+                  {v != null ? formatCount(v) : '-'}
                 </span>
               </div>
             )
