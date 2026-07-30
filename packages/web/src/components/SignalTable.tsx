@@ -1,5 +1,5 @@
 import { flexRender, type Table } from '@tanstack/react-table'
-import { ChevronDown, ChevronUp, ChevronsUpDown, Pencil } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronsUpDown, Loader2, Pencil } from 'lucide-react'
 import { Fragment, useRef, useState } from 'react'
 import type { Signal } from '@csb/shared'
 import { signalExpiryMs } from '@csb/shared'
@@ -12,6 +12,32 @@ import { buildChartUrl, getChartLinkProvider } from '../lib/chart-links'
 // border-collapse, but an inset shadow rides along with the cell.
 const thCls = 'sticky top-0 z-10 bg-zinc-50 px-3 py-2.5 text-left text-xs font-medium text-zinc-500 shadow-[inset_0_-1px_0_rgb(228_228_231)] dark:bg-zinc-900 dark:text-zinc-400 dark:shadow-[inset_0_-1px_0_rgb(39_39_42)] whitespace-nowrap select-none'
 const tdCls = 'px-3 py-2 text-xs text-zinc-900 dark:text-zinc-100 whitespace-nowrap'
+
+/** Why the grid is empty - drives the placeholder text, so a first run doesn't read like a bug.
+ *  'loading'  = the engine is still loading candles (it hasn't started scanning yet)
+ *  'waiting'  = the engine is up but has not fired a signal yet (normal on a fresh database)
+ *  'filtered' = signals exist, the current filters just exclude them all */
+export type SignalEmptyState = 'loading' | 'waiting' | 'filtered'
+
+// The placeholder shown in place of rows. Kept separate so the three states read clearly.
+function EmptyRow({ state, progress, colSpan }: { state: SignalEmptyState; progress: string; colSpan: number }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="px-3 py-16 text-center text-sm text-zinc-400 dark:text-zinc-500">
+        {state === 'loading' ? (
+          <span className="inline-flex items-center gap-2">
+            <Loader2 size={14} className="animate-spin" />
+            {progress
+              ? `Loading candles... ${progress}`
+              : "The engine is still loading candles - scanning starts when it's done."}
+          </span>
+        ) : state === 'waiting'
+          ? "Waiting for the first signals - the engine is running but hasn't fired one yet."
+          : 'No signals match - clear filters, or wait for the engine to fire.'}
+      </td>
+    </tr>
+  )
+}
 
 function SortIcon({ dir }: { dir: false | 'asc' | 'desc' }) {
   if (dir === 'asc') return <ChevronUp size={11} className="ml-1 inline opacity-70" />
@@ -30,7 +56,7 @@ function formatTimeAgo(timestampMs: number): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-export function SignalTable({ table, newIds, expireCandles, settingsChangedAt, hasMore, onLoadMore }: {
+export function SignalTable({ table, newIds, expireCandles, settingsChangedAt, hasMore, onLoadMore, emptyState, loadProgress }: {
   /** The shared signal table (created in App via useSignalTable, so the ColumnPicker can sit in the
    * filter bar). Its data is the visible signal rows. */
   table: Table<Signal>
@@ -42,6 +68,10 @@ export function SignalTable({ table, newIds, expireCandles, settingsChangedAt, h
   /** More rows exist beyond the ones passed in (drives the "Load more" footer). */
   hasMore: boolean
   onLoadMore: () => void
+  /** Why the grid is empty (only used when there are no rows) - see SignalEmptyState. */
+  emptyState: SignalEmptyState
+  /** The engine's live candle-load progress, e.g. "45 / 118 (JUPUSDT)"; "" when not loading. */
+  loadProgress: string
 }) {
   const dragColRef = useRef<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
@@ -83,11 +113,7 @@ export function SignalTable({ table, newIds, expireCandles, settingsChangedAt, h
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
             {table.getRowModel().rows.length === 0 && (
-              <tr>
-                <td colSpan={table.getVisibleLeafColumns().length} className="px-3 py-16 text-center text-sm text-zinc-400 dark:text-zinc-500">
-                  No signals match - clear filters, or wait for the engine to fire.
-                </td>
-              </tr>
+              <EmptyRow state={emptyState} progress={loadProgress} colSpan={table.getVisibleLeafColumns().length} />
             )}
             {(() => {
               const rows = table.getRowModel().rows
