@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.16 - 2026-07-30
+
+### IMPROVED
+- **A starting engine no longer looks like a broken one.** On a cold start (and any time the engine is still loading candles) the signals grid now shows a spinner with the live `Loading candles... 45 / 118 (JUPUSDT)` progress instead of the generic "No signals match" line, and the amber "No scanner database found / database is empty" banner is suppressed while the engine is demonstrably booting - it may not have written its database yet, but that's startup, not a wrong data folder. On a fresh database that has finished loading, the grid says `Waiting for the first signals` rather than implying a filter problem. Derived entirely from the barometer's existing `ready`/`progress` fields, so no engine change was needed.
+
 ## v0.8.15 - 2026-07-30
 
 ### FIX

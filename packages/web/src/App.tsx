@@ -6,7 +6,7 @@ import { PricesContext } from './context/PricesContext.tsx'
 import { Header } from './components/Header.tsx'
 import { MarketHeader } from './components/MarketHeader.tsx'
 import { FilterBar, DEFAULT_FILTERS, type Filters } from './components/FilterBar.tsx'
-import { SignalTable } from './components/SignalTable.tsx'
+import { SignalTable, type SignalEmptyState } from './components/SignalTable.tsx'
 import { ColumnPicker } from './components/ColumnPicker.tsx'
 import { SymbolsPanel } from './components/SymbolsPanel.tsx'
 import { NoDataBanner } from './components/NoDataBanner.tsx'
@@ -261,6 +261,25 @@ export function App() {
   // bar row while the grid renders below - both share this one instance.
   const table = useSignalTable(visible)
 
+  // The engine's own startup phase, read from the barometer tips it pushes: `ready` is false while it
+  // is still loading candles (it mirrors the engine's Initializing status) and `progress` carries the
+  // live "45 / 118 (JUPUSDT)" text. Only meaningful while the live hub is connected - without a hub we
+  // cannot tell "booting" from "not running at all".
+  const engineLoading = useMemo(
+    () => (info?.signalrConnected ? [...barometers.values()].some((b) => !b.ready) : false),
+    [barometers, info?.signalrConnected],
+  )
+  const loadProgress = useMemo(() => {
+    for (const b of barometers.values()) if (b.progress) return b.progress
+    return ''
+  }, [barometers])
+
+  // What an empty grid should say: the engine is still loading candles, it is up but has not fired a
+  // signal yet (the normal first-run state), or the user's filters simply exclude everything.
+  const emptyState: SignalEmptyState = engineLoading ? 'loading'
+    : activeSignals.length === 0 ? 'waiting'
+      : 'filtered'
+
   // The bridge is reading a DB with no data (usual cause: an engine started with `-f` writing
   // elsewhere). Guarded by `loaded` so it doesn't flash before the first fetch resolves, and by
   // `everHadData` so a normal exchange switch - which transiently empties symbols+signals for a
@@ -275,7 +294,9 @@ export function App() {
       {info?.signalrConnected && (
         <MarketHeader barometers={barometers} indicators={indicators} tickers={tickers} prices={prices} symbols={symbols} priceBases={settings?.showSymbolInformation ?? []} />
       )}
-      <NoDataBanner info={info} empty={emptyDb} />
+      {/* Suppressed while the engine is demonstrably booting (hub connected + still loading candles):
+          the DB may not exist or be empty yet, but that is startup, not a wrong data folder. */}
+      {!engineLoading && <NoDataBanner info={info} empty={emptyDb} />}
       {error && (
         <div className="bg-red-500/10 px-4 py-2 text-sm text-red-600 dark:text-red-400">
           {error} - is the bridge running and the C# engine writing its DB?
@@ -292,7 +313,7 @@ export function App() {
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
             <PricesContext.Provider value={prices}>
-              <SignalTable table={table} newIds={newIds} expireCandles={settings?.removeSignalAfterCandles ?? 0} settingsChangedAt={settingsChangedAt} hasMore={filtered.length > visible.length} onLoadMore={() => setVisibleCount((c) => c + PAGE_SIZE)} />
+              <SignalTable table={table} newIds={newIds} expireCandles={settings?.removeSignalAfterCandles ?? 0} settingsChangedAt={settingsChangedAt} hasMore={filtered.length > visible.length} onLoadMore={() => setVisibleCount((c) => c + PAGE_SIZE)} emptyState={emptyState} loadProgress={loadProgress} />
             </PricesContext.Provider>
           </div>
         </main>
