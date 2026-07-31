@@ -204,7 +204,48 @@ export interface ScannerDataSource {
    * the hub is down. */
   getBarometerValues?(quote: string): Promise<Barometer>
 
+  // --- API keys (Telegram / Altrady). Phase B only; drive the engine's own credential + bot code
+  // via SignalR. Secrets are write-only: reads return masked "has*" flags, never the values. ---
+  /** Masked Telegram settings (has-token/has-chat-id + toggles). Rejects if the hub is down. */
+  getTelegramSettings?(): Promise<TelegramSettings>
+  /** Update Telegram settings + (re)start the bot. Blank token/chatId = keep existing. Returns masked. */
+  applyTelegramSettings?(body: TelegramSettingsUpdate): Promise<TelegramSettings>
+  /** Send a Telegram test message via the running bot. Resolves false if not configured. */
+  sendTelegramTest?(): Promise<boolean>
+  /** Masked Altrady settings (has-key/has-secret). Rejects if the hub is down. */
+  getAltradySettings?(): Promise<AltradySettings>
+  /** Update Altrady credentials. Blank key/secret = keep existing. Returns masked. */
+  applyAltradySettings?(body: AltradySettingsUpdate): Promise<AltradySettings>
+
   close(): void
+}
+
+/** Masked Telegram settings from the engine - the token/chat id themselves are never sent. */
+export interface TelegramSettings {
+  hasToken: boolean
+  hasChatId: boolean
+  emojiInTrend: boolean
+  sendSignalsToTelegram: boolean
+}
+
+/** Telegram update from the client. Blank/omitted token or chatId means "keep the stored one". */
+export interface TelegramSettingsUpdate {
+  token?: string
+  chatId?: string
+  emojiInTrend: boolean
+  sendSignalsToTelegram: boolean
+}
+
+/** Masked Altrady settings from the engine - the key/secret themselves are never sent. */
+export interface AltradySettings {
+  hasKey: boolean
+  hasSecret: boolean
+}
+
+/** Altrady update from the client. Blank/omitted key or secret means "keep the stored one". */
+export interface AltradySettingsUpdate {
+  key?: string
+  secret?: string
 }
 
 /** Live last-price per normalised symbol name (e.g. "ONDOUSDT" -> 0.398). Sourced from a public

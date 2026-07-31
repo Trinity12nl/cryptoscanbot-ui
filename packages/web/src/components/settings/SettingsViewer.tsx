@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  SlidersHorizontal, Loader2, Lock, RotateCcw, ArrowLeftRight, Activity, Coins,
-  Target, LineChart, Wallet, ListChecks, Bug, type LucideIcon,
+  SlidersHorizontal, Loader2, Lock, Check, RotateCcw, ArrowLeftRight, Activity, Coins,
+  Target, LineChart, Wallet, ListChecks, Bug, KeyRound, type LucideIcon,
 } from 'lucide-react'
 import type { RawSettings } from '@csb/shared'
 import { fetchRawSettings } from '../../lib/api'
 import { ObjectFields, EditContext, isPlainObject, type Path } from './SettingsValue'
+import { ApiKeysTab } from './ApiKeysTab'
+
+/** The API-keys tab is special: it drives the engine's own Telegram/Altrady code with a working Save,
+ * so it renders its own self-contained component instead of the raw-settings draft. */
+const API_KEYS_TAB = 'apikeys'
 
 /**
  * Settings viewer/editor for the C# scanner's full configuration, laid out in the same tabs the
@@ -69,6 +74,8 @@ const TABS: Tab[] = [
   { id: 'strategies', label: 'Strategies', Icon: Target, render: (s) => renderObj(s.Signal, ['Signal']) },
   { id: 'analyzer', label: 'Analyzer', Icon: LineChart, render: (s) => renderObj(s.Trend, ['Trend']) },
   { id: 'trader', label: 'Trader', Icon: Wallet, render: (s) => renderObj(s.Trading, ['Trading']) },
+  // Special: renders <ApiKeysTab/> (its own data + working Save), not the raw-settings draft.
+  { id: API_KEYS_TAB, label: 'API keys', Icon: KeyRound, render: () => null },
   {
     id: 'lists',
     label: 'Lists',
@@ -124,6 +131,7 @@ export function SettingsViewer() {
   const tab = useMemo(() => TABS.find((t) => t.id === active), [active])
   const body = draft && tab ? tab.render(draft) : null
   const dirty = useMemo(() => JSON.stringify(raw) !== JSON.stringify(draft), [raw, draft])
+  const isApiKeys = active === API_KEYS_TAB
 
   return (
     <>
@@ -147,9 +155,15 @@ export function SettingsViewer() {
                 <SlidersHorizontal size={15} className="text-zinc-400 dark:text-zinc-500" />
                 <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Scanner settings</h2>
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
-                <Lock size={10} /> Save disabled
-              </span>
+              {isApiKeys ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                  <Check size={10} /> Saves live
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+                  <Lock size={10} /> Save disabled
+                </span>
+              )}
             </div>
 
             <div className="flex min-h-0 flex-1">
@@ -176,20 +190,29 @@ export function SettingsViewer() {
 
               {/* Content */}
               <div className="min-w-0 flex-1 overflow-y-auto bg-zinc-50/40 px-5 py-4 dark:bg-transparent">
-                {loading && (
+                {isApiKeys && (
+                  <>
+                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+                      {tab && <tab.Icon size={15} className="text-emerald-500" />}
+                      {tab?.label}
+                    </h3>
+                    <ApiKeysTab />
+                  </>
+                )}
+                {!isApiKeys && loading && (
                   <div className="flex items-center gap-2 py-6 text-xs text-zinc-500 dark:text-zinc-400">
                     <Loader2 size={14} className="animate-spin" /> Loading settings…
                   </div>
                 )}
-                {!loading && error && (
+                {!isApiKeys && !loading && error && (
                   <p className="py-6 text-xs text-red-500 dark:text-red-400">{error}</p>
                 )}
-                {!loading && !error && !draft && (
+                {!isApiKeys && !loading && !error && !draft && (
                   <p className="py-6 text-xs text-zinc-500 dark:text-zinc-400">
                     {"No settings found. Start the scanner at least once so it writes its configuration."}
                   </p>
                 )}
-                {!loading && !error && draft && (
+                {!isApiKeys && !loading && !error && draft && (
                   <EditContext.Provider value={onEdit}>
                     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-800 dark:text-zinc-100">
                       {tab && <tab.Icon size={15} className="text-emerald-500" />}
@@ -206,25 +229,31 @@ export function SettingsViewer() {
             {/* Footer */}
             <div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-5 py-3 dark:border-zinc-800">
               <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
-                {dirty
-                  ? "Edited (preview only) - writing back to the engine lands in a later update."
-                  : "Editing writes back to the engine in a later update - fields are editable as a preview."}
+                {isApiKeys
+                  ? "API keys save straight to the engine (each section has its own Save)."
+                  : dirty
+                    ? "Edited (preview only) - writing back to the engine lands in a later update."
+                    : "Editing writes back to the engine in a later update - fields are editable as a preview."}
               </span>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setDraft(raw ? structuredClone(raw) : null)}
-                  disabled={!dirty}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                >
-                  <RotateCcw size={12} /> Reset
-                </button>
-                <button
-                  disabled
-                  title="Saving to the engine isn't wired up yet - coming in a later update."
-                  className="cursor-not-allowed rounded-md bg-emerald-600/40 px-3 py-1.5 text-xs font-medium text-white opacity-60"
-                >
-                  Save
-                </button>
+                {!isApiKeys && (
+                  <>
+                    <button
+                      onClick={() => setDraft(raw ? structuredClone(raw) : null)}
+                      disabled={!dirty}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      <RotateCcw size={12} /> Reset
+                    </button>
+                    <button
+                      disabled
+                      title="Saving to the engine isn't wired up yet - coming in a later update."
+                      className="cursor-not-allowed rounded-md bg-emerald-600/40 px-3 py-1.5 text-xs font-medium text-white opacity-60"
+                    >
+                      Save
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => setOpen(false)}
                   className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"

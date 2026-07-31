@@ -1,6 +1,6 @@
 import type {
-  Barometer, BarometerGraph, EngineInfo, MarketIndicators, PriceMap, ScannerDataSource, Signal,
-  SymbolRow, Tickers,
+  AltradySettings, AltradySettingsUpdate, Barometer, BarometerGraph, EngineInfo, MarketIndicators,
+  PriceMap, ScannerDataSource, Signal, SymbolRow, TelegramSettings, TelegramSettingsUpdate, Tickers,
 } from '@csb/shared'
 import type { SqliteDataSource } from './sqlite-source.js'
 import type { SignalrSource } from './signalr-source.js'
@@ -115,6 +115,26 @@ export class HybridDataSource implements ScannerDataSource {
 
   getBarometerValues(quote: string): Promise<Barometer> {
     return this.signalr.getBarometerValues(quote)
+  }
+
+  getTelegramSettings(): Promise<TelegramSettings> {
+    return this.signalr.getTelegramSettings()
+  }
+
+  applyTelegramSettings(body: TelegramSettingsUpdate): Promise<TelegramSettings> {
+    return this.signalr.applyTelegramSettings(body)
+  }
+
+  sendTelegramTest(): Promise<boolean> {
+    return this.signalr.sendTelegramTest()
+  }
+
+  getAltradySettings(): Promise<AltradySettings> {
+    return this.signalr.getAltradySettings()
+  }
+
+  applyAltradySettings(body: AltradySettingsUpdate): Promise<AltradySettings> {
+    return this.signalr.applyAltradySettings(body)
   }
 
   close(): void {
