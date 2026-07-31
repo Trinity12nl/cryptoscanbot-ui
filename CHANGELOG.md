@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.17 - 2026-07-31
+
+### NEW
+- **See your scanner's full configuration in the app.** A new settings viewer (sliders icon in the header) shows the engine's entire config, laid out in the same tabs as the C# scanner (General/Signal/Trend/Indicators/Quote/Lists/Trading/Debug), reading the raw settings the bridge already exposes - works in both Live and Polling. Fields are editable against a local draft so you can see what a change would look like, but **saving back to the engine is intentionally disabled for now** (that write-back lands in a later phase); this ships as a read-only preview.
+
 ## v0.8.16 - 2026-07-31
 
 ### NEW
