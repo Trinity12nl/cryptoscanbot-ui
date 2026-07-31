@@ -3,6 +3,7 @@ import type { EngineInfo } from '@csb/shared'
 import { ThemeToggle } from './ThemeToggle'
 import { Changelog } from './Changelog'
 import { DataFolderSettings } from './DataFolderSettings'
+import { SettingsViewer } from './settings/SettingsViewer'
 
 export function Header({ info, live, shown, today }: {
   info: EngineInfo | null
@@ -54,6 +55,7 @@ export function Header({ info, live, shown, today }: {
           <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">{today}</span> today
         </span>
         <Changelog />
+        <SettingsViewer />
         <DataFolderSettings info={info} />
         <ThemeToggle />
       </div>
