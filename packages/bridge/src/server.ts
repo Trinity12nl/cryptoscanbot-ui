@@ -28,6 +28,7 @@ const MIME: Record<string, string> = {
  *
  * REST:  GET /api/info | /api/signals?limit= | /api/symbols?exchange= | /api/prices
  *         | /api/barometer-graph?quote=&interval= | /api/barometer-values?quote=
+ *         | GET/POST /api/telegram | POST /api/telegram/test | GET/POST /api/altrady
  * WS:    pushes { type:'signals' } as new signals land, { type:'prices' } as prices update,
  *        { type:'barometer' } + { type:'marketIndicators' } as the engine broadcasts them (Phase B),
  *        and { type:'info' } + snapshot { type:'prices'|'barometer'|'marketIndicators'|'settings' }
@@ -68,6 +69,22 @@ export function startBridge(
     })
     res.end(s)
   }
+
+  // Read + parse a JSON request body (for the POST settings routes). Caps at 64 KB - these payloads are
+  // tiny (a couple of API keys). Returns {} for an empty body.
+  const readJsonBody = (req: IncomingMessage): Promise<Record<string, unknown>> =>
+    new Promise((resolve, reject) => {
+      let data = ''
+      req.on('data', (chunk) => {
+        data += chunk
+        if (data.length > 65536) reject(new Error('body too large'))
+      })
+      req.on('end', () => {
+        try { resolve(data ? (JSON.parse(data) as Record<string, unknown>) : {}) }
+        catch { reject(new Error('invalid JSON body')) }
+      })
+      req.on('error', reject)
+    })
 
   // Serve the built web UI (when packaged) so the app is same-origin: no CORS, no proxy, and the
   // UI's relative /api + /ws calls just work. SPA fallback: unknown paths return index.html.
@@ -116,6 +133,52 @@ export function startBridge(
             return json(res, 200, await source.getBarometerValues(quote))
           } catch (err: unknown) {
             // Hub not connected / method missing: 503 so the UI falls back to the pushed tip.
+            return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
+          }
+        }
+        // API keys (Telegram / Altrady). GET returns the masked state; POST applies an update. All need
+        // the live hub (404 without it); a hub error while applying is 503. Secrets are write-only.
+        if (url.pathname === '/api/telegram') {
+          if (!source.getTelegramSettings || !source.applyTelegramSettings) {
+            return json(res, 404, { error: 'no live engine link' })
+          }
+          try {
+            if (req.method === 'POST') {
+              const b = await readJsonBody(req)
+              return json(res, 200, await source.applyTelegramSettings({
+                token: typeof b.token === 'string' ? b.token : undefined,
+                chatId: typeof b.chatId === 'string' ? b.chatId : undefined,
+                emojiInTrend: b.emojiInTrend === true,
+                sendSignalsToTelegram: b.sendSignalsToTelegram === true,
+              }))
+            }
+            return json(res, 200, await source.getTelegramSettings())
+          } catch (err: unknown) {
+            return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
+          }
+        }
+        if (url.pathname === '/api/telegram/test') {
+          if (!source.sendTelegramTest) return json(res, 404, { error: 'no live engine link' })
+          try {
+            return json(res, 200, { sent: await source.sendTelegramTest() })
+          } catch (err: unknown) {
+            return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
+          }
+        }
+        if (url.pathname === '/api/altrady') {
+          if (!source.getAltradySettings || !source.applyAltradySettings) {
+            return json(res, 404, { error: 'no live engine link' })
+          }
+          try {
+            if (req.method === 'POST') {
+              const b = await readJsonBody(req)
+              return json(res, 200, await source.applyAltradySettings({
+                key: typeof b.key === 'string' ? b.key : undefined,
+                secret: typeof b.secret === 'string' ? b.secret : undefined,
+              }))
+            }
+            return json(res, 200, await source.getAltradySettings())
+          } catch (err: unknown) {
             return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
           }
         }

@@ -1,7 +1,22 @@
 import * as signalR from '@microsoft/signalr'
-import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, Tickers } from '@csb/shared'
+import type {
+  AltradySettings, AltradySettingsUpdate, Barometer, BarometerGraph, MarketIndicators, PriceMap,
+  TelegramSettings, TelegramSettingsUpdate, Tickers,
+} from '@csb/shared'
 import { parseBarometerGraph, parseBarometerValues, parseDashboardUpdate } from './signalr-dto.js'
 import type { BarometerValuesWire, DashboardUpdateWire } from './signalr-dto.js'
+
+/** Masked wire shapes the API-key hub commands return (PascalCase, like the other DTOs). */
+interface TelegramSettingsWire {
+  HasToken: boolean
+  HasChatId: boolean
+  EmojiInTrend: boolean
+  SendSignalsToTelegram: boolean
+}
+interface AltradySettingsWire {
+  HasKey: boolean
+  HasSecret: boolean
+}
 
 /**
  * Phase B live link: a SignalR client that connects to the C# engine's hub
@@ -235,6 +250,53 @@ export class SignalrSource {
     const b = parseBarometerValues(wire, null)
     if (!b) throw new Error('engine returned no barometer values')
     return b
+  }
+
+  // --- API keys (Telegram / Altrady) --------------------------------------------------------------
+
+  private ensureConnected(): void {
+    if (!this.conn || !this.connected) throw new Error('SignalR hub not connected')
+  }
+
+  async getTelegramSettings(): Promise<TelegramSettings> {
+    this.ensureConnected()
+    const w = await this.conn!.invoke<TelegramSettingsWire>('GetTelegramSettings')
+    return {
+      hasToken: w.HasToken, hasChatId: w.HasChatId,
+      emojiInTrend: w.EmojiInTrend, sendSignalsToTelegram: w.SendSignalsToTelegram,
+    }
+  }
+
+  async applyTelegramSettings(body: TelegramSettingsUpdate): Promise<TelegramSettings> {
+    this.ensureConnected()
+    // Blank (not undefined) tells the engine to keep the stored secret; normalise undefined -> ''.
+    const w = await this.conn!.invoke<TelegramSettingsWire>(
+      'ApplyTelegramSettings', body.token ?? '', body.chatId ?? '',
+      body.emojiInTrend, body.sendSignalsToTelegram,
+    )
+    return {
+      hasToken: w.HasToken, hasChatId: w.HasChatId,
+      emojiInTrend: w.EmojiInTrend, sendSignalsToTelegram: w.SendSignalsToTelegram,
+    }
+  }
+
+  async sendTelegramTest(): Promise<boolean> {
+    this.ensureConnected()
+    return this.conn!.invoke<boolean>('SendTelegramTestMessage')
+  }
+
+  async getAltradySettings(): Promise<AltradySettings> {
+    this.ensureConnected()
+    const w = await this.conn!.invoke<AltradySettingsWire>('GetAltradySettings')
+    return { hasKey: w.HasKey, hasSecret: w.HasSecret }
+  }
+
+  async applyAltradySettings(body: AltradySettingsUpdate): Promise<AltradySettings> {
+    this.ensureConnected()
+    const w = await this.conn!.invoke<AltradySettingsWire>(
+      'ApplyAltradySettings', body.key ?? '', body.secret ?? '',
+    )
+    return { hasKey: w.HasKey, hasSecret: w.HasSecret }
   }
 
   close(): void {

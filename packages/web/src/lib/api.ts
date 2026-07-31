@@ -1,4 +1,4 @@
-import type { Barometer, BarometerGraph, BridgeEvent, EngineInfo, EngineSettings, PriceMap, RawSettings, Signal, SymbolRow } from '@csb/shared'
+import type { AltradySettings, AltradySettingsUpdate, Barometer, BarometerGraph, BridgeEvent, EngineInfo, EngineSettings, PriceMap, RawSettings, Signal, SymbolRow, TelegramSettings, TelegramSettingsUpdate } from '@csb/shared'
 
 /**
  * The web app's ONLY dependency on the backend: the local bridge (same origin in dev via Vite proxy,
@@ -61,6 +61,44 @@ export async function fetchBarometerValues(quote: string): Promise<Barometer | n
   const r = await fetch(`/api/barometer-values?quote=${encodeURIComponent(quote)}`)
   if (!r.ok) return null
   return r.json() as Promise<Barometer>
+}
+
+// --- API keys (Telegram / Altrady). Phase B / SignalR only; null on GET means "no live engine link".
+// Secrets are write-only: GET never returns them, only masked "has*" flags. ---
+
+export async function fetchTelegramSettings(): Promise<TelegramSettings | null> {
+  const r = await fetch('/api/telegram')
+  if (!r.ok) return null
+  return r.json() as Promise<TelegramSettings>
+}
+
+export async function saveTelegramSettings(body: TelegramSettingsUpdate): Promise<TelegramSettings> {
+  const r = await fetch('/api/telegram', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  })
+  if (!r.ok) throw new Error(`telegram save ${r.status}`)
+  return r.json() as Promise<TelegramSettings>
+}
+
+export async function sendTelegramTest(): Promise<boolean> {
+  const r = await fetch('/api/telegram/test', { method: 'POST' })
+  if (!r.ok) throw new Error(`telegram test ${r.status}`)
+  const j = (await r.json()) as { sent: boolean }
+  return j.sent
+}
+
+export async function fetchAltradySettings(): Promise<AltradySettings | null> {
+  const r = await fetch('/api/altrady')
+  if (!r.ok) return null
+  return r.json() as Promise<AltradySettings>
+}
+
+export async function saveAltradySettings(body: AltradySettingsUpdate): Promise<AltradySettings> {
+  const r = await fetch('/api/altrady', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  })
+  if (!r.ok) throw new Error(`altrady save ${r.status}`)
+  return r.json() as Promise<AltradySettings>
 }
 
 /** Subscribe to live bridge events over WebSocket, with auto-reconnect. Returns an unsubscribe fn. */

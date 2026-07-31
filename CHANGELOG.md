@@ -9,6 +9,11 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.18 - 2026-08-01
+
+### NEW
+- **Configure Telegram + Altrady API keys from the app - and it actually saves.** The settings viewer gets an "API keys" tab (before Lists) with a Telegram section (bot token, chat id, send-signals + emoji toggles, and a "Send test message" button) and an Altrady section (key + secret). Unlike the other preview-only tabs, this one writes straight to the engine: it drives the engine's own Telegram/Altrady code over SignalR, so saving stores the credentials (encrypted by the engine) and (re)starts the Telegram bot live. Secrets are write-only - the app only ever learns whether a token/key is configured, never the value, and "leave blank to keep" preserves what's stored. Requires a live engine connection (needs the matching engine build that exposes the commands).
+
 ## v0.8.17 - 2026-07-31
 
 ### NEW
