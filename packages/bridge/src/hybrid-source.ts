@@ -113,6 +113,10 @@ export class HybridDataSource implements ScannerDataSource {
     return this.signalr.getBarometerGraph(quote, interval)
   }
 
+  getBarometerValues(quote: string): Promise<Barometer> {
+    return this.signalr.getBarometerValues(quote)
+  }
+
   close(): void {
     for (const u of this.unsubs) u()
     this.signalr.close()

@@ -240,6 +240,13 @@ export function App() {
     return on.length > 0 ? Object.fromEntries(on.map((qc) => [qc.name, qc.minVolume])) : null
   }, [settings])
 
+  // The barometer quote dropdown offers every active quote coin (not just the one the desktop app
+  // pushes), so a web user can pick their own; MarketHeader then pulls that quote's values via RPC.
+  const activeQuotes = useMemo(
+    () => (settings?.quoteCoins ?? []).filter((qc) => qc.active).map((qc) => qc.name),
+    [settings],
+  )
+
   // "today" = signals whose open time is on or after local midnight (computed from the loaded set).
   const todayCount = useMemo(() => {
     const start = new Date(); start.setHours(0, 0, 0, 0)
@@ -273,7 +280,7 @@ export function App() {
     <div className="flex h-full flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <Header info={info} live={live} shown={visible.length} today={todayCount} />
       {info?.signalrConnected && (
-        <MarketHeader barometers={barometers} indicators={indicators} tickers={tickers} prices={prices} symbols={symbols} priceBases={settings?.showSymbolInformation ?? []} />
+        <MarketHeader barometers={barometers} indicators={indicators} tickers={tickers} prices={prices} symbols={symbols} priceBases={settings?.showSymbolInformation ?? []} quoteOptions={activeQuotes} />
       )}
       <NoDataBanner info={info} empty={emptyDb} />
       {error && (

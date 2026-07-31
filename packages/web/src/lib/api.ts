@@ -1,4 +1,4 @@
-import type { BarometerGraph, BridgeEvent, EngineInfo, EngineSettings, PriceMap, RawSettings, Signal, SymbolRow } from '@csb/shared'
+import type { Barometer, BarometerGraph, BridgeEvent, EngineInfo, EngineSettings, PriceMap, RawSettings, Signal, SymbolRow } from '@csb/shared'
 
 /**
  * The web app's ONLY dependency on the backend: the local bridge (same origin in dev via Vite proxy,
@@ -52,6 +52,15 @@ export async function fetchBarometerGraph(quote: string, interval: string): Prom
   const r = await fetch(`/api/barometer-graph?quote=${encodeURIComponent(quote)}&interval=${encodeURIComponent(interval)}`)
   if (!r.ok) return null
   return r.json() as Promise<BarometerGraph>
+}
+
+/** Pull the current 1h/4h/1d barometer values for a quote (Phase B / SignalR only). The engine's push
+ * only carries the desktop app's selected quote, so this RPC-backed endpoint fills in the values when
+ * a web user picks a different quote. Returns null when there's no live engine link or the hub is down. */
+export async function fetchBarometerValues(quote: string): Promise<Barometer | null> {
+  const r = await fetch(`/api/barometer-values?quote=${encodeURIComponent(quote)}`)
+  if (!r.ok) return null
+  return r.json() as Promise<Barometer>
 }
 
 /** Subscribe to live bridge events over WebSocket, with auto-reconnect. Returns an unsubscribe fn. */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, SymbolRow, Tickers } from '@csb/shared'
-import { fetchBarometerGraph } from '../lib/api'
+import { fetchBarometerGraph, fetchBarometerValues } from '../lib/api'
 import { formatPrice, formatCompact, formatCount } from '../lib/format'
 import { BarometerPanel } from './BarometerPanel'
 
@@ -46,6 +46,9 @@ interface Props {
    * source the scanner uses), in order. Each is paired with the active quote; non-existent pairs are
    * skipped. */
   priceBases: string[]
+  /** Active quote coins from settings. The barometer dropdown offers these (unioned with any the
+   * engine has pushed) so a web user can pick a quote the desktop app hasn't selected. */
+  quoteOptions: string[]
 }
 
 function fmtIndicator(name: string, value: number): string {
@@ -82,15 +85,44 @@ const ColTitle = ({ children }: { children: string }) => (
   <span className="font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{children}</span>
 )
 
-export function MarketHeader({ barometers, indicators, tickers, prices, symbols, priceBases }: Props) {
-  const quotes = useMemo(() => [...barometers.keys()].sort(), [barometers])
+export function MarketHeader({ barometers, indicators, tickers, prices, symbols, priceBases, quoteOptions }: Props) {
+  // Dropdown offers the active quote coins (from settings), so a web user can pick any quote the
+  // desktop app hasn't selected. We deliberately do NOT union in the pushed barometer keys: that map
+  // only ever grows (a quote pushed while active lingers after it's deactivated), which would leave
+  // stale quotes in the list. The engine only pushes active quotes anyway, so settings is the truth.
+  // Fall back to the pushed keys (or USDT) only until settings load, so the list is never empty.
+  const quotes = useMemo(() => {
+    if (quoteOptions.length) return [...quoteOptions].sort()
+    const pushed = [...barometers.keys()]
+    return pushed.length ? pushed.sort() : ['USDT']
+  }, [quoteOptions, barometers])
+
   const [quote, setQuote] = useState('USDT')
   const [interval, setInterval] = useState('1h')
   const [graph, setGraph] = useState<BarometerGraph | null>(null)
+  const [rpcTip, setRpcTip] = useState<Barometer | null>(null)
 
-  // Keep the quote valid: prefer USDT, else the first quote the engine reports a barometer for.
-  const activeQuote = barometers.has(quote) ? quote : (quotes[0] ?? quote)
-  const tip = barometers.get(activeQuote) ?? null
+  // Honour the user's pick when it's a valid option, else prefer USDT, else the first available.
+  const activeQuote = quotes.includes(quote) ? quote : (quotes.includes('USDT') ? 'USDT' : (quotes[0] ?? 'USDT'))
+
+  // The desktop push only carries its own SelectedQuote. For that quote we use the pushed tip; for any
+  // other quote - and on connect, before the first push - we pull the values via the point-3 RPC.
+  const pushedTip = barometers.get(activeQuote) ?? null
+  const tip = pushedTip ?? rpcTip
+
+  // Pull the RPC values whenever the active quote has no pushed tip, polling at the push cadence so a
+  // web-chosen quote stays fresh. Reset on every quote change so a stale reading never shows under a
+  // new label; once a push covers the quote, pushedTip wins and we stop polling.
+  const hasPush = pushedTip != null
+  useEffect(() => {
+    setRpcTip(null)
+    if (hasPush) return
+    let alive = true
+    const load = () => { void fetchBarometerValues(activeQuote).then((b) => { if (alive) setRpcTip(b) }) }
+    load()
+    const id = window.setInterval(load, 60_000)
+    return () => { alive = false; window.clearInterval(id) }
+  }, [activeQuote, hasPush])
 
   // While the scanner is still loading candles the graph isn't Ready yet; the barometer TIP (pushed
   // over WS every ~2s) flips Ready long before the next graph pull would. So poll the graph fast while

@@ -27,7 +27,7 @@ const MIME: Record<string, string> = {
  * C# host (Phase B) changes nothing here or in the UI.
  *
  * REST:  GET /api/info | /api/signals?limit= | /api/symbols?exchange= | /api/prices
- *         | /api/barometer-graph?quote=&interval=
+ *         | /api/barometer-graph?quote=&interval= | /api/barometer-values?quote=
  * WS:    pushes { type:'signals' } as new signals land, { type:'prices' } as prices update,
  *        { type:'barometer' } + { type:'marketIndicators' } as the engine broadcasts them (Phase B),
  *        and { type:'info' } + snapshot { type:'prices'|'barometer'|'marketIndicators'|'settings' }
@@ -106,6 +106,16 @@ export function startBridge(
             return json(res, 200, await source.getBarometerGraph(quote, interval))
           } catch (err: unknown) {
             // Hub not connected / method missing: 503 so the UI keeps its pulsating skeleton.
+            return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
+          }
+        }
+        if (url.pathname === '/api/barometer-values') {
+          if (!source.getBarometerValues) return json(res, 404, { error: 'no live engine link' })
+          const quote = url.searchParams.get('quote') ?? 'USDT'
+          try {
+            return json(res, 200, await source.getBarometerValues(quote))
+          } catch (err: unknown) {
+            // Hub not connected / method missing: 503 so the UI falls back to the pushed tip.
             return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
           }
         }
