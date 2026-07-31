@@ -199,6 +199,10 @@ export interface ScannerDataSource {
   getTickers?(): Tickers | null
   /** Pull the ~7h barometer graph for a quote+interval from the engine. Rejects if the hub is down. */
   getBarometerGraph?(quote: string, interval: string): Promise<BarometerGraph>
+  /** Pull the current 1h/4h/1d barometer values for a quote (point-3 RPC). Lets a web user read a
+   * quote the desktop app hasn't selected, instead of waiting on the single-quote push. Rejects if
+   * the hub is down. */
+  getBarometerValues?(quote: string): Promise<Barometer>
 
   close(): void
 }

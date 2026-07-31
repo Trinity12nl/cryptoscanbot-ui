@@ -26,8 +26,9 @@ interface BarometerPointWire {
 }
 
 /** Current barometer summary (BarometerValuesDto): 1h/4h/1d only - no 15m/30m. `Ready`/`Progress` are
- * present on newer engine builds (candle-load state); optional so we still parse older builds. */
-interface BarometerValuesWire {
+ * present on newer engine builds (candle-load state); optional so we still parse older builds.
+ * Exported because the `GetBarometerValues(quote)` RPC returns this same shape on demand. */
+export interface BarometerValuesWire {
   Quote: string
   Barometer1h: number
   Barometer4h: number
@@ -105,7 +106,7 @@ export function parseDashboardUpdate(w: DashboardUpdateWire): DashboardParts {
  * candle-load state when present; older builds omit them, so we fall back to `ready=true` (the push
  * only fires once Running there anyway) and `progress=''`. `calculatedAtMs` comes from the latest graph
  * point's Time when present - `BarometerTime` is only an "HH:mm" display string, not a full timestamp. */
-function parseBarometerValues(
+export function parseBarometerValues(
   bv: BarometerValuesWire | null, latest: BarometerPointWire | null,
 ): Barometer | null {
   if (!bv) return null

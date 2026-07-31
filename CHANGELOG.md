@@ -9,6 +9,14 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.16 - 2026-07-31
+
+### NEW
+- **Pick your own barometer quote - values load on demand, not just the desktop's selection.** The engine only pushes the barometer readings (1h/4h/1d) for the quote selected in the desktop app, so a web user picking a different quote used to get nothing until the next push (or never). The barometer dropdown now lists every active quote coin, and switching to one that isn't being pushed pulls its values straight from the engine via the new `GetBarometerValues(quote)` hub RPC (bridge `GET /api/barometer-values?quote=`), polling at the push cadence. The graph already worked per-quote; this brings the readings in line. (Pairs with the engine PR that exposes the RPC + fixes the empty barometer time.)
+
+### FIX
+- **Barometer dropdown no longer lists deactivated quotes.** It was built from the union of active quotes and every quote the engine had ever pushed - and that pushed set only grows, so a quote coin you turned off lingered in the list. The dropdown now comes from the active quote coins (settings) alone.
+
 ## v0.8.15 - 2026-07-30
 
 ### FIX

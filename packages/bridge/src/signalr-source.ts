@@ -1,7 +1,7 @@
 import * as signalR from '@microsoft/signalr'
 import type { Barometer, BarometerGraph, MarketIndicators, PriceMap, Tickers } from '@csb/shared'
-import { parseBarometerGraph, parseDashboardUpdate } from './signalr-dto.js'
-import type { DashboardUpdateWire } from './signalr-dto.js'
+import { parseBarometerGraph, parseBarometerValues, parseDashboardUpdate } from './signalr-dto.js'
+import type { BarometerValuesWire, DashboardUpdateWire } from './signalr-dto.js'
 
 /**
  * Phase B live link: a SignalR client that connects to the C# engine's hub
@@ -223,6 +223,18 @@ export class SignalrSource {
       'GetBarometerGraph', quote, interval,
     )
     return parseBarometerGraph(wire)
+  }
+
+  /** Pull the current 1h/4h/1d barometer values for a quote from the engine hub (point-3 RPC).
+   * Unlike the dashboard push - which only carries the desktop app's SelectedQuote - this returns the
+   * values for whatever quote the caller (a web user) picked. Rejects when the hub is not connected. */
+  async getBarometerValues(quote: string): Promise<Barometer> {
+    if (!this.conn || !this.connected) throw new Error('SignalR hub not connected')
+    const wire = await this.conn.invoke<BarometerValuesWire>('GetBarometerValues', quote)
+    // The RPC has no LatestBarometerPoint, so calculatedAtMs stays null - the readings are what matter.
+    const b = parseBarometerValues(wire, null)
+    if (!b) throw new Error('engine returned no barometer values')
+    return b
   }
 
   close(): void {

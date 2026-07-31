@@ -99,6 +99,19 @@ async function pullGraph(quote, interval) {
   }
 }
 
+async function pullValues(quote) {
+  try {
+    const bv = await conn.invoke('GetBarometerValues', quote)
+    console.log(
+      `[${ts()}] VALUES RPC ${bv.Quote}  ` +
+      `1h=${num(bv.Barometer1h)} 4h=${num(bv.Barometer4h)} 1d=${num(bv.Barometer1d)}  ` +
+      `time=${bv.BarometerTime}  Ready=${bv.Ready} Progress="${bv.Progress ?? ''}"`
+    )
+  } catch (err) {
+    console.log(`[${ts()}] GetBarometerValues(${quote}) failed: ${err?.message ?? err}`)
+  }
+}
+
 async function main() {
   console.log(`Connecting to ${url} ...`)
   try {
@@ -115,6 +128,9 @@ async function main() {
 
   // Pull the full barometer graph for the usual timeframes, like the UI does on connect/switch.
   for (const interval of ['1h', '4h', '1d']) await pullGraph(QUOTE, interval)
+
+  // Pull the per-quote 1h/4h/1d summary via the new GetBarometerValues(quote) RPC (point 3).
+  await pullValues(QUOTE)
 }
 
 main()
