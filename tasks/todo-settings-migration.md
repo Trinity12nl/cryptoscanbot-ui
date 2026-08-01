@@ -57,6 +57,38 @@ existing broadcast architecture; no fragile file-writing from the bridge, no eng
   sends the whole object back - so fields we don't render (and any Trading block) pass through
   untouched. We never rebuild the full model in TS.
 
+## Scope split for the first write-back cut (decided 2026-08-01)
+
+Research of `CommandShowConfiguration.cs` vs Core's `ScannerSession.ApplyConfigurationAsync` settled
+what is safe to write back live and what is not. The "decisions in the form" Marius warned about are
+NOT the per-tab field mappers (those are trivial) - they are the post-OK **diff-and-teardown tree** in
+`CommandShowConfiguration`: snapshot the old exchange + old fetched-quote set, then on a change run
+`StopAsync` -> clear exchange/candle data -> `ApplyConfigurationAsync(true)` -> `ScheduleRefresh`. That
+tree lives ONLY in the app; Core has the primitives but not the orchestration.
+
+**IN the first cut (value-level, safe):** everything Core's `ApplyConfigurationAsync(false)` already
+re-applies without a teardown - `General` (minus ExchangeName), `Signal` (+ `Signal.AnalyzerSettings`),
+`Trend`, `Trading`, the four white/black lists, `ShowSymbolInformation`. Save = set those groups on the
+existing `GlobalData.Settings`, `SaveConfiguration()`, `ApplyConfigurationAsync(false)`, fire the
+desktop refresh messages. This is a **hub-only** change (the hub calls `IScannerSession`, which is in
+Core - no APP->CORE handler needed after all).
+
+**FENCED OFF (destructive - not writable in the first cut):**
+- **ExchangeName** - switching exchanges needs the stop/clear/reload tree. Preserve the current value
+  on save; the UI shows it read-only ("change in the scanner / restart to apply").
+- **QuoteCoins** (the `FetchCandles` set + per-quote `MinimalVolume`) - changing which quotes fetch
+  needs `ClearCandles` for de-selected quotes + reload, and the runtime `QuoteCoins[].SymbolList` must
+  be preserved (the design-finding below). So the save leaves `GlobalData.Settings.QuoteCoins`
+  UNTOUCHED. Because we never touch QuoteCoins, we can safely swap the other groups wholesale (they are
+  pure settings POCOs with no runtime state), sidestepping the field-by-field merge for the first cut.
+
+**Later (needs Marius):** to make exchange/quote changes writable, ask him to extract the diff-and-
+teardown tree out of `CommandShowConfiguration` into a Core method (e.g.
+`ScannerSession.ApplyConfigurationChange(oldExchange, oldQuotes)`) that both his desktop command and our
+hub call - one place, serves his "get decisions out of the form" goal. Telegram/Altrady/**Alpaca**
+(`TradingApi`) live outside `GlobalData.Settings` (separate objects) - Telegram/Altrady already have
+dedicated RPCs; Alpaca would too if ever in scope.
+
 ## Plan (phased - one PR per phase)
 
 ### Phase 0 - read the full settings (foundation) - DONE (v0.8.9)

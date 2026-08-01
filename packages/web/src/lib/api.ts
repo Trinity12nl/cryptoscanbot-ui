@@ -46,6 +46,17 @@ export async function fetchRawSettings(): Promise<RawSettings | null> {
   return r.json() as Promise<RawSettings | null>
 }
 
+/** Write value-level settings back to the engine (Phase B / SignalR only) and apply them live. The
+ * engine fences off exchange + quote-fetch changes; it returns the persisted settings it echoes back.
+ * Throws on 404 (no live engine link) or 503 (hub error) so the editor can surface a clear message. */
+export async function saveRawSettings(body: RawSettings): Promise<RawSettings> {
+  const r = await fetch('/api/settings', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  })
+  if (!r.ok) throw new Error(`settings save ${r.status}`)
+  return r.json() as Promise<RawSettings>
+}
+
 /** Pull the ~7h barometer graph for a quote+interval (Phase B / SignalR only). Returns null when the
  * bridge has no live engine link or the hub is not connected yet - the UI keeps its loading skeleton. */
 export async function fetchBarometerGraph(quote: string, interval: string): Promise<BarometerGraph | null> {
