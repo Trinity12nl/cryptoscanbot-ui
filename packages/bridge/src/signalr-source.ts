@@ -1,7 +1,7 @@
 import * as signalR from '@microsoft/signalr'
 import type {
   AltradySettings, AltradySettingsUpdate, Barometer, BarometerGraph, MarketIndicators, PriceMap,
-  TelegramSettings, TelegramSettingsUpdate, Tickers,
+  RawSettings, TelegramSettings, TelegramSettingsUpdate, Tickers,
 } from '@csb/shared'
 import { parseBarometerGraph, parseBarometerValues, parseDashboardUpdate } from './signalr-dto.js'
 import type { BarometerValuesWire, DashboardUpdateWire } from './signalr-dto.js'
@@ -297,6 +297,16 @@ export class SignalrSource {
       'ApplyAltradySettings', body.key ?? '', body.secret ?? '',
     )
     return { hasKey: w.HasKey, hasSecret: w.HasSecret }
+  }
+
+  // --- General settings write-back ----------------------------------------------------------------
+
+  /** Push a full raw settings object back to the engine (value-level only; the hub fences off exchange
+   * + quote-fetch changes) and return the persisted settings the engine echoes back. */
+  async applySettings(raw: RawSettings): Promise<RawSettings> {
+    this.ensureConnected()
+    const echoed = await this.conn!.invoke<string>('ApplySettings', JSON.stringify(raw))
+    return JSON.parse(echoed) as RawSettings
   }
 
   close(): void {

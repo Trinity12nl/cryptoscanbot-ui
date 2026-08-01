@@ -217,6 +217,10 @@ export interface ScannerDataSource {
   /** Update Altrady credentials. Blank key/secret = keep existing. Returns masked. */
   applyAltradySettings?(body: AltradySettingsUpdate): Promise<AltradySettings>
 
+  /** Write value-level settings back to the engine and apply them live. The engine fences off exchange
+   * + quote-fetch changes (destructive); returns the persisted settings. Rejects if the hub is down. */
+  applySettings?(raw: RawSettings): Promise<RawSettings>
+
   close(): void
 }
 

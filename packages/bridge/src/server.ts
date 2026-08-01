@@ -182,7 +182,20 @@ export function startBridge(
             return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
           }
         }
-        if (url.pathname === '/api/settings') return json(res, 200, settingsSource?.get() ?? null)
+        if (url.pathname === '/api/settings') {
+          // POST writes value-level settings back through the hub (exchange + quote-fetch changes are
+          // fenced off engine-side); GET returns the projected filter settings read from the file.
+          if (req.method === 'POST') {
+            if (!source.applySettings) return json(res, 404, { error: 'no live engine link' })
+            try {
+              const b = await readJsonBody(req)
+              return json(res, 200, await source.applySettings(b))
+            } catch (err: unknown) {
+              return json(res, 503, { error: err instanceof Error ? err.message : 'hub unavailable' })
+            }
+          }
+          return json(res, 200, settingsSource?.get() ?? null)
+        }
         if (url.pathname === '/api/settings/raw') return json(res, 200, settingsSource?.getRaw() ?? null)
         if (serveStatic(res, url.pathname)) return
         json(res, 404, { error: 'not found' })

@@ -9,6 +9,15 @@ Uses [semantic versioning](https://semver.org/).
 > We track that engine but do not own it, so this changelog covers only the app (bridge + web +
 > desktop). Engine repo (link may change): <https://github.com/CryptoMarius/CryptoScanBot>.
 
+## v0.8.19 - 2026-08-01
+
+### NEW
+- **The settings viewer now saves - your edits go back to the scanner and apply live.** Every value-level tab (Exchange/Common, Indicators, Strategies, Analyzer, Trader, Lists, Debug) got a real Save: it writes the whole settings object back through the bridge (`POST /api/settings`) to the engine's new `ApplySettings` hub command, which persists it and re-applies the configuration live - no scanner restart. Edit a field, hit Save, and the scanner picks it up. Requires a live engine connection (needs the matching engine build that exposes the command).
+- **Two changes are deliberately fenced off (for now).** Switching the active **exchange** and changing which **base coins** fetch candles are destructive on the engine side (they force a stop/clear/reload), so the app leaves those untouched on save and shows an amber notice on the Exchange and Basecoins tabs telling you to make those changes in the scanner. Everything else on those tabs still saves live.
+
+### TECH
+- **Settings write-back plumbing (hub-only).** Bridge: `applySettings(raw)` on the SignalR + hybrid sources and a `POST /api/settings` route (404 without a live engine, 503 on hub error), plus the shared `ScannerDataSource.applySettings` seam and `web/lib/api.ts` `saveRawSettings`. Engine side (Marius' avalonia branch, local): `CryptoSignalHub.ApplySettings(json)` merges value-level groups onto the running `GlobalData.Settings` (preserving ExchangeName + the runtime QuoteCoins), then `SaveConfiguration()` + `ScannerSession.ApplyConfigurationAsync(false)` + grid-refresh messages - no engine-logic file touched.
+
 ## v0.8.18 - 2026-08-01
 
 ### NEW
